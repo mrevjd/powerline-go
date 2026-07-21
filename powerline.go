@@ -235,12 +235,15 @@ func termWidth() int {
 			return 0
 		}
 
-		shellMaxLength64, err := strconv.ParseInt(shellMaxLengthStr, 0, 64)
+		// strconv.Atoi returns a platform-sized int directly, avoiding the
+		// unchecked int64 -> int narrowing that CodeQL flags
+		// (go/incorrect-integer-conversion). COLUMNS is always decimal.
+		shellMaxLength, err := strconv.Atoi(shellMaxLengthStr)
 		if err != nil {
 			return 0
 		}
 
-		termWidth = int(shellMaxLength64)
+		termWidth = shellMaxLength
 	}
 
 	return termWidth
