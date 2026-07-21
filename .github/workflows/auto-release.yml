@@ -1,0 +1,102 @@
+name: Auto release
+
+# On every merge to main, compute the next semver tag from the commits since
+# the last tag (conventional commits), create the tag, and publish a GitHub
+# Release with the static per-platform binaries via GoReleaser.
+#
+# Skip a release for a given push by putting [skip release] in the commit
+# message (e.g. docs-only changes).
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next semver tag
+        id: version
+        env:
+          # This fork starts its own release line here. Inherited upstream tags
+          # (v1.x and below) are ignored until we are on the fork line.
+          FORK_BASELINE: v2.0.0
+        run: |
+          set -euo pipefail
+
+          # Highest existing version tag, normalised to 3 components. Both
+          # vX.Y and vX.Y.Z tags are considered (the repo has some of each).
+          latest="$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -n1 || true)"
+          latestMajor="$(printf '%s' "${latest#v}" | cut -d. -f1)"
+
+          if [ -z "$latest" ] || [ "${latestMajor:-0}" -lt 2 ]; then
+            # Only inherited upstream tags (< v2) exist: start the fork line.
+            next="$FORK_BASELINE"
+            echo "Starting the fork release line at ${next}"
+          else
+            ver="${latest#v}"
+            IFS='.' read -r major minor patch <<< "$ver"
+            patch="${patch:-0}"
+
+            # Conventional-commit bump over the commits since the last tag.
+            range="${latest}..HEAD"
+            bump="patch"
+            if git log "$range" --format='%s%n%b' | grep -qiE 'BREAKING CHANGE|^[a-z]+(\([^)]*\))?!:'; then
+              bump="major"
+            elif git log "$range" --format='%s' | grep -qiE '^feat(\([^)]*\))?:'; then
+              bump="minor"
+            fi
+
+            case "$bump" in
+              major) major=$((major + 1)); minor=0; patch=0 ;;
+              minor) minor=$((minor + 1)); patch=0 ;;
+              patch) patch=$((patch + 1)) ;;
+            esac
+            next="v${major}.${minor}.${patch}"
+            echo "Latest ${latest}, bump=${bump} -> ${next}"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${next}" >/dev/null; then
+            echo "Tag ${next} already exists; nothing to release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=${next}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.version.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - uses: actions/setup-go@v5
+        if: steps.version.outputs.skip == 'false'
+        with:
+          go-version: "1.23"
+
+      - uses: goreleaser/goreleaser-action@v6
+        if: steps.version.outputs.skip == 'false'
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.tag }}
