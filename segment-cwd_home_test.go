@@ -84,3 +84,23 @@ func Test_homeRelativePath(t *testing.T) {
 		assert(t, cwdToPathSegments(p, "/etc/nginx"), "etc", "nginx")
 	})
 }
+
+// Covers #406: -path-aliases must also apply in -cwd-mode plain.
+func Test_segmentCwd_plainPathAliases(t *testing.T) {
+	t.Setenv("HOME", "/home/test")
+	p := &powerline{
+		cwd:      "/home/test/work/projects/foo/bar",
+		userInfo: user.User{HomeDir: "/home/test"},
+		cfg: Config{
+			CwdMode:     "plain",
+			PathAliases: AliasMap{"~/work/projects/foo": "@FOO"},
+		},
+	}
+	segs := segmentCwd(p)
+	if len(segs) != 1 {
+		t.Fatalf("plain cwd = %d segments, want 1", len(segs))
+	}
+	if segs[0].Content != "@FOO/bar" {
+		t.Errorf("plain cwd content = %q, want %q", segs[0].Content, "@FOO/bar")
+	}
+}

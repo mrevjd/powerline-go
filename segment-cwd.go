@@ -147,6 +147,36 @@ func homeRelativePath(p *powerline, cwd string) (string, bool) {
 	return "", false
 }
 
+// aliasedPlainPath applies -path-aliases to a plain (single-string) cwd, using
+// the same key set as the segmented modes so plain mode is no longer the odd
+// one out. Keys are matched as path prefixes; use "~" for home, matching the
+// segmented behaviour and the documented usage. See #406.
+func aliasedPlainPath(p *powerline, cwd string) string {
+	if len(p.cfg.PathAliases) == 0 {
+		return cwd
+	}
+	sep := string(os.PathSeparator)
+	keys := make([]string, 0, len(p.cfg.PathAliases))
+	for k := range p.cfg.PathAliases {
+		keys = append(keys, k)
+	}
+	// Longest key first, so the most specific alias wins.
+	sort.Sort(byRevLength(keys))
+	for _, k := range keys {
+		key := strings.TrimRight(k, sep)
+		if key == "" {
+			continue
+		}
+		if cwd == key {
+			return p.cfg.PathAliases[k]
+		}
+		if strings.HasPrefix(cwd, key+sep) {
+			return p.cfg.PathAliases[k] + cwd[len(key):]
+		}
+	}
+	return cwd
+}
+
 func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 	pathSegments := make([]pathSegment, 0)
@@ -216,6 +246,7 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 		if rel, ok := homeRelativePath(p, cwd); ok {
 			cwd = "~" + rel
 		}
+		cwd = aliasedPlainPath(p, cwd)
 
 		segments = append(segments, pwl.Segment{
 			Name:       "cwd",
