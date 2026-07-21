@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -104,6 +105,10 @@ Aliases:
 func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 	pathSegments := make([]pathSegment, 0)
+	// Normalise the path so duplicate or trailing separators (e.g. bash
+	// exporting PWD="//" after `cd //`) don't produce empty segments, which
+	// previously panicked in dironly mode. See #424.
+	cwd = path.Clean(cwd)
 
 	if cwd == p.userInfo.HomeDir {
 		pathSegments = append(pathSegments, pathSegment{
