@@ -11,7 +11,7 @@ func segmentShellVar(p *powerline) []pwl.Segment {
 	varContent, varExists := os.LookupEnv(shellVarName)
 
 	if !varExists {
-		if shellVarName != "" {
+		if shellVarName != "" && !p.cfg.ShellVarNoWarnEmpty {
 			warn("Shell variable " + shellVarName + " does not exist.")
 		}
 		return []pwl.Segment{}

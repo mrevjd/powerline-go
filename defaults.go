@@ -258,7 +258,7 @@ var defaults = Config{
 			VirtualGoBg: 38,  // approx. Gopher Blue
 
 			PerlbrewFg: 00,
-			PerlbrewBg: 20, // a mid-tone blue
+			PerlbrewBg: 32, // a lighter blue, readable with black text (#147)
 
 			PlEnvFg: 00,
 			PlEnvBg: 32,

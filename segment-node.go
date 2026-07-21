@@ -24,6 +24,11 @@ func getNodeVersion() string {
 	return strings.TrimSuffix(string(out), "\n")
 }
 
+func hasPackageJSON() bool {
+	stat, err := os.Stat(pkgfile)
+	return err == nil && !stat.IsDir()
+}
+
 func getPackageVersion() string {
 	stat, err := os.Stat(pkgfile)
 	if err != nil {
@@ -46,10 +51,17 @@ func getPackageVersion() string {
 }
 
 func segmentNode(p *powerline) []pwl.Segment {
+	segments := []pwl.Segment{}
+
+	// Only surface node info inside a node project (package.json present).
+	// Otherwise the segment showed on every prompt merely because `node` was
+	// on PATH. See #356.
+	if !hasPackageJSON() {
+		return segments
+	}
+
 	nodeVersion := getNodeVersion()
 	packageVersion := getPackageVersion()
-
-	segments := []pwl.Segment{}
 
 	if nodeVersion != "" {
 		segments = append(segments, pwl.Segment{
