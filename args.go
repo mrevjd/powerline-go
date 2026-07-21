@@ -186,7 +186,7 @@ var args = arguments{
 	ShellVarNoWarnEmpty: flag.Bool(
 		"shell-var-no-warn-empty",
 		defaults.ShellVarNoWarnEmpty,
-		comments("Disables warning for empty shell variable.")),
+		comments("Disables the warning shown when the shell variable is unset or empty.")),
 	TrimADDomain: flag.Bool(
 		"trim-ad-domain",
 		defaults.TrimADDomain,
