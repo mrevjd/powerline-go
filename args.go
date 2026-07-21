@@ -50,6 +50,7 @@ type arguments struct {
 	Version                *bool
 
 	PathAliasesCaseInsensitive *bool
+	MinShlvl                   *int
 }
 
 var args = arguments{
@@ -135,19 +136,19 @@ var args = arguments{
 		"modules",
 		strings.Join(defaults.Modules, ","),
 		commentsWithDefaults("The list of modules to load, separated by ','",
-			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, vi-mode, wsl, azure)",
+			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, shlvl, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, vi-mode, wsl, azure)",
 			"Unrecognized modules will be invoked as 'powerline-go-MODULE' executable plugins and should output a (possibly empty) list of JSON objects that unmarshal to powerline-go's Segment structs.")),
 	ModulesRight: flag.String(
 		"modules-right",
 		strings.Join(defaults.ModulesRight, ","),
 		comments("The list of modules to load anchored to the right, for shells that support it, separated by ','",
-			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, wsl, azure)",
+			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, shlvl, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, wsl, azure)",
 			"Unrecognized modules will be invoked as 'powerline-go-MODULE' executable plugins and should output a (possibly empty) list of JSON objects that unmarshal to powerline-go's Segment structs.")),
 	Priority: flag.String(
 		"priority",
 		strings.Join(defaults.Priority, ","),
 		commentsWithDefaults("Segments sorted by priority, if not enough space exists, the least priorized segments are removed first. Separate with ','",
-			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, vi-mode, wsl, azure)")),
+			"(valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, shlvl, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, vi-mode, wsl, azure)")),
 	MaxWidthPercentage: flag.Int(
 		"max-width",
 		defaults.MaxWidthPercentage,
@@ -242,4 +243,8 @@ var args = arguments{
 		"path-aliases-case-insensitive",
 		defaults.PathAliasesCaseInsensitive,
 		comments("Match -path-aliases case-insensitively (useful on case-insensitive filesystems)")),
+	MinShlvl: flag.Int(
+		"shlvl-min",
+		defaults.MinShlvl,
+		comments("Minimum $SHLVL before the shlvl module shows the shell nesting depth")),
 }

@@ -1696,6 +1696,7 @@ var defaults = Config{
 	ViMode: "",
 
 	PathAliasesCaseInsensitive: false,
+	MinShlvl:                   2,
 }
 
 const (

@@ -59,6 +59,7 @@ type Config struct {
 	ViMode                 string    `json:"vi-mode"`
 
 	PathAliasesCaseInsensitive bool `json:"path-aliases-case-insensitive"`
+	MinShlvl                   int  `json:"shlvl-min"`
 }
 
 func (mode *SymbolTemplate) UnmarshalJSON(data []byte) error {
