@@ -36,15 +36,20 @@ func segmentHost(p *powerline) []pwl.Segment {
 		hostName := getHostName(p.hostname, p.cfg.FqdnHostname)
 		hostPrompt = hostName
 
-		foregroundEnv, foregroundEnvErr := strconv.ParseUint(os.Getenv("PLGO_HOSTNAMEFG"), 0, 8)
-		backgroundEnv, backgroundEnvErr := strconv.ParseUint(os.Getenv("PLGO_HOSTNAMEBG"), 0, 8)
-		if foregroundEnvErr == nil && backgroundEnvErr == nil {
-			foreground = uint8(foregroundEnv)
-			background = uint8(backgroundEnv)
+		// Derive a stable colour from a hash of the hostname, then let either
+		// colour be overridden independently via the env vars. The foreground
+		// tracks the final background so it stays readable, so PLGO_HOSTNAMEFG
+		// and PLGO_HOSTNAMEBG no longer have to be set as a pair.
+		background = getMd5(hostName)[0] % 128
+		if bg, err := strconv.ParseUint(os.Getenv("PLGO_HOSTNAMEBG"), 0, 8); err == nil {
+			background = uint8(bg)
+		}
+		if fg, err := strconv.ParseUint(os.Getenv("PLGO_HOSTNAMEFG"), 0, 8); err == nil {
+			foreground = uint8(fg)
+		} else if mapped, ok := p.theme.HostnameColorizedFgMap[background]; ok {
+			foreground = mapped
 		} else {
-			hash := getMd5(hostName)
-			background = hash[0] % 128
-			foreground = p.theme.HostnameColorizedFgMap[background]
+			foreground = p.theme.HostnameFg
 		}
 	} else {
 		if p.cfg.Shell == "bash" {

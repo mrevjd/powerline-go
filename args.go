@@ -67,7 +67,7 @@ var args = arguments{
 	ColorizeHostname: flag.Bool(
 		"colorize-hostname",
 		defaults.ColorizeHostname,
-		comments("Colorize the hostname based on a hash of itself, or use the PLGO_HOSTNAMEFG and PLGO_HOSTNAMEBG env vars (both need to be set).")),
+		comments("Colorize the hostname based on a hash of itself. Override either colour independently with the PLGO_HOSTNAMEFG and/or PLGO_HOSTNAMEBG env vars (color codes 0-255).")),
 	FqdnHostname: flag.Bool(
 		"fqdn-hostname",
 		defaults.FqdnHostname,
