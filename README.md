@@ -20,6 +20,7 @@ Ported to golang by @justjanne.
 - [Installation](#installation)
   - [Precompiled Binaries](#precompiled-binaries)
   - [Other Platforms](#other-platforms)
+  - [Building from source](#building-from-source)
   - [Bash](#bash)
   - [ZSH](#zsh)
   - [Fish](#fish)
@@ -81,6 +82,22 @@ go install github.com/justjanne/powerline-go@latest
 - By default it will be in `$GOPATH/bin`, if you want to change that, you can set
   your `$GOPATH` and/or `$GOBIN`, but will need to change the path in the
   following scripts, too.
+
+### Building from source
+
+With the [Go toolchain](https://go.dev/dl/) installed, a `Makefile` wraps the
+common tasks (run `make help` to list them all):
+
+```bash
+make build     # static x64 Linux binary at ./bin/powerline-go (default target)
+make test      # run the test suite
+make install   # install a static binary into $GOBIN (or $GOPATH/bin)
+```
+
+`make build` sets `CGO_ENABLED=0` and pins `GOOS=linux GOARCH=amd64`, so the
+result is a fully static, dependency-free binary that runs on any x86-64 Linux
+machine regardless of its libc. Release binaries for every platform are produced
+with [GoReleaser](https://goreleaser.com/) (`goreleaser build --clean --snapshot`).
 
 ### Bash
 
