@@ -450,6 +450,8 @@ perform interpolation on it before `powerline-go` can see it!
 
 A comma inside a path can be escaped as `\,` so it is not treated as the
 separator between alias definitions (e.g. `-path-aliases '/mnt/c/Co\, Inc=@co'`).
+This escaping applies to the `-path-aliases` flag; in a JSON config file, commas
+in keys need no escaping.
 
 Pass `-path-aliases-case-insensitive` to match alias paths regardless of case,
 which is useful on case-insensitive filesystems such as macOS or Windows.
