@@ -209,9 +209,8 @@ func main() {
 		case "trim-ad-domain":
 			cfg.TrimADDomain = *args.TrimADDomain
 		case "path-aliases":
-			for _, pair := range strings.Split(*args.PathAliases, ",") {
-				kv := strings.SplitN(pair, "=", 2)
-				cfg.PathAliases[kv[0]] = kv[1]
+			for k, v := range parsePathAliases(*args.PathAliases) {
+				cfg.PathAliases[k] = v
 			}
 		case "duration":
 			cfg.Duration = *args.Duration
