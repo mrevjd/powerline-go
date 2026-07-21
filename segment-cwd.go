@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -102,6 +103,50 @@ Aliases:
 	return pathSegments
 }
 
+// homeDirs returns the paths that should be abbreviated to "~": the shell's
+// $HOME and the account's home directory from the user database, plus their
+// symlink-resolved forms. On some systems (notably WSL) $HOME and the passwd
+// home diverge, or os.Getwd resolves a symlink that the home path does not, so
+// comparing cwd against a single home path misses. Resolving is cheap because
+// home paths are shallow. See #418.
+func homeDirs(p *powerline) []string {
+	seen := map[string]bool{}
+	homes := make([]string, 0, 4)
+	add := func(h string) {
+		if h != "" && !seen[h] {
+			seen[h] = true
+			homes = append(homes, h)
+		}
+	}
+	for _, h := range []string{os.Getenv("HOME"), p.userInfo.HomeDir} {
+		if h == "" {
+			continue
+		}
+		add(h)
+		if resolved, err := filepath.EvalSymlinks(h); err == nil {
+			add(resolved)
+		}
+	}
+	return homes
+}
+
+// homeRelativePath reports whether cwd lies within one of the home directories
+// and, if so, returns the path relative to that home ("" when cwd is exactly
+// home). The remainder keeps its leading separator, matching the previous
+// cwd[len(home):] behaviour.
+func homeRelativePath(p *powerline, cwd string) (string, bool) {
+	sep := string(os.PathSeparator)
+	for _, home := range homeDirs(p) {
+		if cwd == home {
+			return "", true
+		}
+		if strings.HasPrefix(cwd, home+sep) {
+			return cwd[len(home):], true
+		}
+	}
+	return "", false
+}
+
 func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 	pathSegments := make([]pathSegment, 0)
@@ -110,18 +155,12 @@ func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
 	// previously panicked in dironly mode. See #424.
 	cwd = path.Clean(cwd)
 
-	if cwd == p.userInfo.HomeDir {
+	if rel, ok := homeRelativePath(p, cwd); ok {
 		pathSegments = append(pathSegments, pathSegment{
 			path: "~",
 			home: true,
 		})
-		cwd = ""
-	} else if strings.HasPrefix(cwd, p.userInfo.HomeDir+pathSeparator) {
-		pathSegments = append(pathSegments, pathSegment{
-			path: "~",
-			home: true,
-		})
-		cwd = cwd[len(p.userInfo.HomeDir):]
+		cwd = rel
 	} else if cwd == pathSeparator {
 		pathSegments = append(pathSegments, pathSegment{
 			path: pathSeparator,
@@ -174,8 +213,8 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 
 	switch p.cfg.CwdMode {
 	case "plain":
-		if strings.HasPrefix(cwd, p.userInfo.HomeDir) {
-			cwd = "~" + cwd[len(p.userInfo.HomeDir):]
+		if rel, ok := homeRelativePath(p, cwd); ok {
+			cwd = "~" + rel
 		}
 
 		segments = append(segments, pwl.Segment{
