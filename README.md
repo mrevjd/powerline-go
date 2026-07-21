@@ -42,7 +42,7 @@ quick look into the state of your repo:
 In addition, git has a few extra symbols:
 
 - `✎` -- a file has been modified, but not staged for commit
-- `✔` -- a file is staged for commit
+- `✓` -- a file is staged for commit
 - `✼` -- a file has conflicts
 - `+` -- untracked files are present
 - `⚑` -- stash is present
@@ -61,6 +61,9 @@ improved UI), you'll need to install a powerline font, either as fallback,
 or by patching the font you use for your terminal: see
 [powerline-fonts](https://github.com/Lokaltog/powerline-fonts).
 Alternatively you can use "compatible" or "flat" mode.
+
+See [Fonts, glyphs & terminals](#fonts-glyphs--terminals) below if some symbols
+render as boxes, question marks, or coloured emoji.
 
 ### Precompiled Binaries
 
@@ -187,6 +190,64 @@ function global:prompt {
 ```
 
 Use `ProcessStartInfo` is needed to allow fill the enviromnet variables required by powerline-go.
+
+## Fonts, glyphs & terminals
+
+powerline-go does not draw graphics; it prints Unicode code points and lets your
+terminal and font render them. Whether a symbol appears therefore depends on the
+`-mode` you pick, the font you have selected, and how well your terminal falls
+back for code points the primary font is missing. If some glyphs render and
+others don't, this section is why.
+
+### Pick the mode that matches your font
+
+| Mode | Separators | Icons | Use when |
+| --- | --- | --- | --- |
+| `patched` (default) | Powerline glyphs (`U+E0B0`…, Private Use Area) | Nerd Font icons for nix-shell, rvm, venv (also PUA) | Your terminal font is a **Nerd Font** (or a powerline-patched font, for separators only). |
+| `compatible` | Standard Unicode triangles (`▶ ◀ ❯ ❮`) | Standard Unicode fallbacks (`❄ ◆ π`) | Your font is a normal font with no powerline/Nerd patching. |
+| `flat` | None | Same standard fallbacks | You want no separators at all. |
+
+Set it with `-mode compatible` (or `flat`). The separator arrows, the git branch
+symbol, the padlock, and the nix-shell/rvm/venv indicators are all Private Use
+Area glyphs in `patched` mode. They only exist in a suitable font. A plain
+**powerline-patched** font (the `powerline-fonts` link above) supplies *only* the
+separator glyphs, **not** the nix-shell/rvm/venv icons; those need a full
+[Nerd Font](https://www.nerdfonts.com/).
+
+### Nerd Fonts: Mono vs. regular, and the v3 migration
+
+- **Mono vs. regular variant.** Nerd Fonts ship a `... Mono` variant that squeezes
+  every icon into a single character cell. That keeps column alignment, but the
+  seamless powerline separators (`U+E0B0`…) are designed to bleed to the cell edge;
+  when squeezed they can leave a thin gap so the previous segment's background
+  shows through as a hairline "border" around each arrow. If those borders bother
+  you, try the **non-Mono** variant (wider but edge-to-edge), or a terminal with
+  tighter cell metrics.
+- **v3 code-point migration.** Nerd Fonts v3 (2023) moved thousands of icons to new
+  code points. If you patched or froze a font before v3, some PUA indicators may
+  point at empty or wrong glyphs. Update to a current Nerd Font.
+
+### MobaXterm
+
+MobaXterm renders from the single font you select and does **not** do rich
+per-glyph fallback the way modern GPU terminals (WezTerm, kitty, Windows
+Terminal) do. A code point that isn't in the selected font shows as a box or `?`
+rather than being borrowed from another font. To get powerline/Nerd glyphs:
+
+1. Install a **Nerd Font** (e.g. `CaskaydiaCove Nerd Font`, `JetBrainsMono Nerd Font`).
+2. In *Settings → Terminal → Font*, set that Nerd Font as the **primary** terminal
+   font. Installing it is not enough; it must be the selected font.
+3. If icons still fail, use `-mode compatible` so powerline-go only emits
+   widely-supported standard-Unicode symbols.
+
+### Emoji vs. text presentation
+
+A few code points (notably the git ahead/behind arrows and the staged tick) have
+a default *emoji* presentation in some environments, which renders them coloured
+and/or double-width and makes them ignore your theme colour. powerline-go's
+defaults use the text-presentation code points (`⇡ U+21E1`, `⇣ U+21E3`,
+`✓ U+2713`) to avoid this. If you override symbols via a config file, prefer
+text-default code points over emoji ones for the same reason.
 
 ## Customization
 
