@@ -80,6 +80,9 @@ func newPowerline(cfg Config, cwd string, align alignment) *powerline {
 	p.userIsAdmin = userIsAdmin()
 
 	p.theme = cfg.Themes[cfg.Theme]
+	if cfg.Bold {
+		p.theme.BoldForeground = true
+	}
 	if cfg.Shell == "autodetect" {
 		var shellExe string
 		proc, err := process.NewProcess(int32(os.Getppid()))

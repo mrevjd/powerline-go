@@ -60,6 +60,7 @@ type Config struct {
 
 	PathAliasesCaseInsensitive bool `json:"path-aliases-case-insensitive"`
 	MinShlvl                   int  `json:"shlvl-min"`
+	Bold                       bool `json:"bold"`
 }
 
 func (mode *SymbolTemplate) UnmarshalJSON(data []byte) error {

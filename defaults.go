@@ -1697,6 +1697,7 @@ var defaults = Config{
 
 	PathAliasesCaseInsensitive: false,
 	MinShlvl:                   2,
+	Bold:                       false,
 }
 
 const (

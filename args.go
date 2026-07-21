@@ -51,6 +51,7 @@ type arguments struct {
 
 	PathAliasesCaseInsensitive *bool
 	MinShlvl                   *int
+	Bold                       *bool
 }
 
 var args = arguments{
@@ -247,4 +248,8 @@ var args = arguments{
 		"shlvl-min",
 		defaults.MinShlvl,
 		comments("Minimum $SHLVL before the shlvl module shows the shell nesting depth")),
+	Bold: flag.Bool(
+		"bold",
+		defaults.Bold,
+		comments("Use bold text for segment foregrounds")),
 }
