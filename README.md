@@ -277,6 +277,8 @@ in your shell’s init file.
 Usage of powerline-go:
   -alternate-ssh-icon
          Show the older, original icon for SSH connections
+  -bold
+         Use bold text for segment foregrounds
   -colorize-hostname
          Colorize the hostname based on a hash of itself, or use the PLGO_HOSTNAMEFG and PLGO_HOSTNAMEBG env vars (both need to be set).
   -fqdn-hostname
@@ -450,6 +452,8 @@ perform interpolation on it before `powerline-go` can see it!
 
 A comma inside a path can be escaped as `\,` so it is not treated as the
 separator between alias definitions (e.g. `-path-aliases '/mnt/c/Co\, Inc=@co'`).
+This escaping applies to the `-path-aliases` flag; in a JSON config file, commas
+in keys need no escaping.
 
 Pass `-path-aliases-case-insensitive` to match alias paths regardless of case,
 which is useful on case-insensitive filesystems such as macOS or Windows.
