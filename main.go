@@ -201,6 +201,8 @@ func main() {
 			cfg.ShellVar = *args.ShellVar
 		case "shell-var-no-warn-empty":
 			cfg.ShellVarNoWarnEmpty = *args.ShellVarNoWarnEmpty
+		case "path-aliases-case-insensitive":
+			cfg.PathAliasesCaseInsensitive = *args.PathAliasesCaseInsensitive
 		case "trim-ad-domain":
 			cfg.TrimADDomain = *args.TrimADDomain
 		case "path-aliases":

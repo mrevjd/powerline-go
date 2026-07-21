@@ -85,6 +85,44 @@ func Test_homeRelativePath(t *testing.T) {
 	})
 }
 
+// Covers #253: -path-aliases-case-insensitive matches regardless of case.
+func Test_pathAliases_caseInsensitive(t *testing.T) {
+	t.Setenv("HOME", "/home/test")
+	newP := func(ci bool, mode string) *powerline {
+		return &powerline{
+			cwd:      "/home/test/Work/Projects",
+			userInfo: user.User{HomeDir: "/home/test"},
+			cfg: Config{
+				CwdMode:                    mode,
+				PathAliases:                AliasMap{"~/work/projects": "@P"},
+				PathAliasesCaseInsensitive: ci,
+			},
+		}
+	}
+
+	t.Run("fancy: case-insensitive matches", func(t *testing.T) {
+		got := pathSegmentPaths(cwdToPathSegments(newP(true, "fancy"), "/home/test/Work/Projects"))
+		if len(got) != 1 || got[0] != "@P" {
+			t.Fatalf("segments = %v, want [@P]", got)
+		}
+	})
+
+	t.Run("fancy: case-sensitive does not match", func(t *testing.T) {
+		got := pathSegmentPaths(cwdToPathSegments(newP(false, "fancy"), "/home/test/Work/Projects"))
+		want := []string{"~", "Work", "Projects"}
+		if len(got) != len(want) {
+			t.Fatalf("segments = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("plain: case-insensitive matches", func(t *testing.T) {
+		segs := segmentCwd(newP(true, "plain"))
+		if len(segs) != 1 || segs[0].Content != "@P" {
+			t.Fatalf("plain content = %v, want @P", segs)
+		}
+	})
+}
+
 // Covers #406: -path-aliases must also apply in -cwd-mode plain.
 func Test_segmentCwd_plainPathAliases(t *testing.T) {
 	t.Setenv("HOME", "/home/test")

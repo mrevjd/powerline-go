@@ -32,6 +32,24 @@ func (s byRevLength) Less(i, j int) bool {
 	return len(s[i]) > len(s[j])
 }
 
+// segEqual compares two path segments, honouring the case-insensitive option.
+func segEqual(a, b string, caseInsensitive bool) bool {
+	if caseInsensitive {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// segHasPrefix reports whether s starts with prefix, honouring the
+// case-insensitive option. It compares exactly len(prefix) bytes, so the caller
+// can safely slice s[len(prefix):] for the remainder regardless of casing.
+func segHasPrefix(s, prefix string, caseInsensitive bool) bool {
+	if !caseInsensitive {
+		return strings.HasPrefix(s, prefix)
+	}
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
 func maybeAliasPathSegments(p *powerline, pathSegments []pathSegment) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 
@@ -79,7 +97,7 @@ Aliases:
 			// elements. If any element doesn't match we can move on to the
 			// next index in pathSegments.
 			for j := range path {
-				if path[j] != pathSegments[i+j].path {
+				if !segEqual(path[j], pathSegments[i+j].path, p.cfg.PathAliasesCaseInsensitive) {
 					continue Segments
 				}
 			}
@@ -167,10 +185,10 @@ func aliasedPlainPath(p *powerline, cwd string) string {
 		if key == "" {
 			continue
 		}
-		if cwd == key {
+		if segEqual(cwd, key, p.cfg.PathAliasesCaseInsensitive) {
 			return p.cfg.PathAliases[k]
 		}
-		if strings.HasPrefix(cwd, key+sep) {
+		if segHasPrefix(cwd, key+sep, p.cfg.PathAliasesCaseInsensitive) {
 			return p.cfg.PathAliases[k] + cwd[len(key):]
 		}
 	}

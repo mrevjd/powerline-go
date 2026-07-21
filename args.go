@@ -48,6 +48,8 @@ type arguments struct {
 	Time                   *string
 	ViMode                 *string
 	Version                *bool
+
+	PathAliasesCaseInsensitive *bool
 }
 
 var args = arguments{
@@ -236,4 +238,8 @@ var args = arguments{
 		"version",
 		false,
 		comments("Print the current version and exit")),
+	PathAliasesCaseInsensitive: flag.Bool(
+		"path-aliases-case-insensitive",
+		defaults.PathAliasesCaseInsensitive,
+		comments("Match -path-aliases case-insensitively (useful on case-insensitive filesystems)")),
 }

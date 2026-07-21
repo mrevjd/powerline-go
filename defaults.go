@@ -1694,6 +1694,8 @@ var defaults = Config{
 	},
 	Time:   "15:04:05",
 	ViMode: "",
+
+	PathAliasesCaseInsensitive: false,
 }
 
 const (

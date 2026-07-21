@@ -444,6 +444,9 @@ Note that you should use `~` instead of `/home/username` when specifying the
 path. Also make sure to escape the `~` character. Otherwise your shell will
 perform interpolation on it before `powerline-go` can see it!
 
+Pass `-path-aliases-case-insensitive` to match alias paths regardless of case,
+which is useful on case-insensitive filesystems such as macOS or Windows.
+
 ### Duration
 
 The duration segment requires some assistance from the shell.  The shell must have a hook that gets executed immediately before the command.
