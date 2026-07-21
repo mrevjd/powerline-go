@@ -101,6 +101,7 @@ var modules = map[string]func(*powerline) []pwl.Segment{
 	"rvm":                 segmentRvm,
 	"shell-var":           segmentShellVar,
 	"shenv":               segmentShEnv,
+	"shlvl":               segmentShLvl,
 	"ssh":                 segmentSSH,
 	"termtitle":           segmentTermTitle,
 	"terraform-workspace": segmentTerraformWorkspace,
@@ -201,6 +202,10 @@ func main() {
 			cfg.ShellVar = *args.ShellVar
 		case "shell-var-no-warn-empty":
 			cfg.ShellVarNoWarnEmpty = *args.ShellVarNoWarnEmpty
+		case "path-aliases-case-insensitive":
+			cfg.PathAliasesCaseInsensitive = *args.PathAliasesCaseInsensitive
+		case "shlvl-min":
+			cfg.MinShlvl = *args.MinShlvl
 		case "trim-ad-domain":
 			cfg.TrimADDomain = *args.TrimADDomain
 		case "path-aliases":

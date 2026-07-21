@@ -32,6 +32,24 @@ func (s byRevLength) Less(i, j int) bool {
 	return len(s[i]) > len(s[j])
 }
 
+// segEqual compares two path segments, honouring the case-insensitive option.
+func segEqual(a, b string, caseInsensitive bool) bool {
+	if caseInsensitive {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+// segHasPrefix reports whether s starts with prefix, honouring the
+// case-insensitive option. It compares exactly len(prefix) bytes, so the caller
+// can safely slice s[len(prefix):] for the remainder regardless of casing.
+func segHasPrefix(s, prefix string, caseInsensitive bool) bool {
+	if !caseInsensitive {
+		return strings.HasPrefix(s, prefix)
+	}
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
 func maybeAliasPathSegments(p *powerline, pathSegments []pathSegment) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 
@@ -79,7 +97,7 @@ Aliases:
 			// elements. If any element doesn't match we can move on to the
 			// next index in pathSegments.
 			for j := range path {
-				if path[j] != pathSegments[i+j].path {
+				if !segEqual(path[j], pathSegments[i+j].path, p.cfg.PathAliasesCaseInsensitive) {
 					continue Segments
 				}
 			}
@@ -145,6 +163,36 @@ func homeRelativePath(p *powerline, cwd string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// aliasedPlainPath applies -path-aliases to a plain (single-string) cwd, using
+// the same key set as the segmented modes so plain mode is no longer the odd
+// one out. Keys are matched as path prefixes; use "~" for home, matching the
+// segmented behaviour and the documented usage. See #406.
+func aliasedPlainPath(p *powerline, cwd string) string {
+	if len(p.cfg.PathAliases) == 0 {
+		return cwd
+	}
+	sep := string(os.PathSeparator)
+	keys := make([]string, 0, len(p.cfg.PathAliases))
+	for k := range p.cfg.PathAliases {
+		keys = append(keys, k)
+	}
+	// Longest key first, so the most specific alias wins.
+	sort.Sort(byRevLength(keys))
+	for _, k := range keys {
+		key := strings.TrimRight(k, sep)
+		if key == "" {
+			continue
+		}
+		if segEqual(cwd, key, p.cfg.PathAliasesCaseInsensitive) {
+			return p.cfg.PathAliases[k]
+		}
+		if segHasPrefix(cwd, key+sep, p.cfg.PathAliasesCaseInsensitive) {
+			return p.cfg.PathAliases[k] + cwd[len(key):]
+		}
+	}
+	return cwd
 }
 
 func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
@@ -216,6 +264,7 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 		if rel, ok := homeRelativePath(p, cwd); ok {
 			cwd = "~" + rel
 		}
+		cwd = aliasedPlainPath(p, cwd)
 
 		segments = append(segments, pwl.Segment{
 			Name:       "cwd",
