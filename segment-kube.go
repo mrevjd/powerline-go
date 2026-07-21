@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	pwl "github.com/justjanne/powerline-go/powerline"
 	"io/ioutil"
 	"os"
@@ -37,6 +38,17 @@ func readKubeConfig(config *KubeConfig, path string) (err error) {
 	if err != nil {
 		return
 	}
+	// Only read regular files. Reading a directory (e.g. the cwd, which is what
+	// an empty KUBECONFIG entry resolves to) can panic inside os.ReadFile on
+	// some filesystems (FUSE/Ceph report a bogus size, overflowing the
+	// preallocation with "makeslice: cap out of range"). See #419.
+	info, err := os.Stat(absolutePath)
+	if err != nil {
+		return
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("kube config is not a regular file: %s", absolutePath)
+	}
 	fileContent, err := ioutil.ReadFile(absolutePath)
 	if err != nil {
 		return
@@ -53,6 +65,9 @@ func segmentKube(p *powerline) []pwl.Segment {
 	paths := append(strings.Split(os.Getenv("KUBECONFIG"), ":"), path.Join(homePath(), ".kube", "config"))
 	config := &KubeConfig{}
 	for _, configPath := range paths {
+		if configPath == "" {
+			continue
+		}
 		temp := &KubeConfig{}
 		if readKubeConfig(temp, configPath) == nil {
 			config.Contexts = append(config.Contexts, temp.Contexts...)
