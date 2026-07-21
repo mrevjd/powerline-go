@@ -277,6 +277,8 @@ in your shell’s init file.
 Usage of powerline-go:
   -alternate-ssh-icon
          Show the older, original icon for SSH connections
+  -bold
+         Use bold text for segment foregrounds
   -colorize-hostname
          Colorize the hostname based on a hash of itself, or use the PLGO_HOSTNAMEFG and PLGO_HOSTNAMEBG env vars (both need to be set).
   -fqdn-hostname

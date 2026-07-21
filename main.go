@@ -206,6 +206,8 @@ func main() {
 			cfg.PathAliasesCaseInsensitive = *args.PathAliasesCaseInsensitive
 		case "shlvl-min":
 			cfg.MinShlvl = *args.MinShlvl
+		case "bold":
+			cfg.Bold = *args.Bold
 		case "trim-ad-domain":
 			cfg.TrimADDomain = *args.TrimADDomain
 		case "path-aliases":
