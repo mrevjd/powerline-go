@@ -45,6 +45,11 @@ SYMBOLS = [
     (0xE92B, "RvmIndicator", "rvm"),
 ]
 
+# Symbols RobotoMono Nerd Font has no sensible stand-in icon for, so patch_font.py
+# deliberately leaves them unmapped. They are reported but do not fail the run;
+# anything else missing is a real failure. See README.md.
+KNOWN_GAPS = {0x2B22, 0xE92B}
+
 DISCOVER_GLOBS = [
     "/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Fonts/RobotoMonoNerdFontMono-Regular.ttf",
     "/mnt/c/Windows/Fonts/RobotoMonoNerdFontMono-Regular.ttf",
@@ -80,7 +85,8 @@ def check(path):
             )
         else:
             missing.append((codepoint, field, module))
-            print("  U+%04X  %-22s %-14s MISSING" % (codepoint, field, module))
+            note = "MISSING (known gap)" if codepoint in KNOWN_GAPS else "MISSING"
+            print("  U+%04X  %-22s %-14s %s" % (codepoint, field, module, note))
     return missing
 
 
@@ -113,14 +119,30 @@ def main():
             all_missing.add((codepoint, field, module))
 
     print("=" * 78)
-    if not all_missing:
-        print("All %d symbols render in %d file(s)." % (len(SYMBOLS), len(paths)))
+    gaps = sorted(m for m in all_missing if m[0] in KNOWN_GAPS)
+    unexpected = sorted(m for m in all_missing if m[0] not in KNOWN_GAPS)
+
+    if gaps:
+        print("%d known gap(s), documented and deliberately not patched:" % len(gaps))
+        for codepoint, field, module in gaps:
+            print("  U+%04X %s (module: %s)" % (codepoint, field, module))
+        print()
+
+    if not unexpected:
+        print(
+            "All %d patchable symbol(s) render in %d file(s)."
+            % (len(SYMBOLS) - len(gaps), len(paths))
+        )
         return
 
-    print("%d symbol(s) missing across %d file(s):" % (len(all_missing), len(paths)))
-    for codepoint, field, module in sorted(all_missing):
+    print(
+        "%d symbol(s) unexpectedly missing across %d file(s):"
+        % (len(unexpected), len(paths))
+    )
+    for codepoint, field, module in unexpected:
         print("  U+%04X %s (module: %s)" % (codepoint, field, module))
     print("\nThese draw blank in terminals without font fallback. See README.md.")
+    raise SystemExit(1)
 
 
 if __name__ == "__main__":

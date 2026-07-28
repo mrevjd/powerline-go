@@ -91,6 +91,10 @@ python3 verify_font.py --dir ./patched    # a directory of .ttf files
 It reports every symbol in the `patched` mode block and whether the font can
 render it, so it doubles as a check that an install actually took effect.
 
+It exits non-zero if any symbol the patch is supposed to cover is missing, so it can
+gate a regeneration or a CI step. The two known gaps below are reported but treated
+as expected, and do not fail the run.
+
 ## Regenerating
 
 Requires `fonttools`.
@@ -101,11 +105,16 @@ python3 patch_font.py --out ./patched     # write patched copies
 cd patched && zip -9 -X ../RobotoMono-NFM-patched.zip *.ttf
 ```
 
-By default it discovers the installed font directory (Windows per-user fonts
-first) and matches `RobotoMonoNerdFontMono-*.ttf`. Because the patched fonts are
-now the installed ones on this machine, a bare re-run reports "already patched"
-and writes nothing; point `--src` at unpatched originals from the
-[Nerd Fonts releases](https://github.com/ryanoasis/nerd-fonts/releases) to
+Both scripts are meant to run **from WSL against the Windows drive**, which is how
+the fonts get patched and installed here, so default discovery looks in
+`/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Fonts` (per-user installs) and
+`/mnt/c/Windows/Fonts`, then the Linux font directories, for the first one that
+actually holds a match. Anywhere else, including native Windows Python where those
+`/mnt/c` paths do not exist, pass `--src` explicitly.
+
+Because the patched fonts are now the installed ones on this machine, a bare re-run
+reports "already patched" and writes nothing; point `--src` at unpatched originals
+from the [Nerd Fonts releases](https://github.com/ryanoasis/nerd-fonts/releases) to
 regenerate from scratch.
 
 The zip is not byte-reproducible, since zip records mtimes. The fonts inside are.

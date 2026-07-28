@@ -202,7 +202,11 @@ def main():
         % (written, len(files), "would change" if args.dry_run else "written")
     )
     if written and not args.dry_run:
-        print("Verify with: python3 verify_font.py --dir %s" % args.out)
+        # Absolute, so the hint is copy-pasteable from any working directory.
+        verifier = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "verify_font.py"
+        )
+        print("Verify with: %s %s --dir %s" % (sys.executable, verifier, args.out))
 
 
 if __name__ == "__main__":
