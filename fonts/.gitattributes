@@ -1,0 +1,3 @@
+# Font binaries: never diff, never munge line endings.
+*.ttf binary
+*.zip binary
