@@ -20,3 +20,7 @@ pg
 /.idea/
 
 .vscode/
+
+# Local output of fonts/patch_font.py (the README default --out).
+fonts/patched/
+fonts/patched-nonmono/
