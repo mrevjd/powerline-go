@@ -14,9 +14,31 @@ jobs:
         with:
           fetch-depth: 0
       - run: git fetch --force --tags
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
+          go-version-file: go.mod
+      # Same assertion as build.yml, repeated here on purpose: this job has no
+      # build or test step of its own before goreleaser, so without it an
+      # incomplete module graph would first surface as a goreleaser build failure
+      # on the runner that signs and uploads.
+      - name: Verify module graph is complete
+        run: |
+          set -euo pipefail
+          # git diff cannot see an untracked file, so assert both are tracked
+          # first: a go.sum missing from the repo would otherwise be regenerated
+          # by the tooling below and still look clean.
+          git ls-files --error-unmatch go.mod go.sum > /dev/null
+          go mod download
+          # `go mod download` + `git diff --exit-code` does NOT work as a
+          # completeness check: -mod=readonly is the default, so download never
+          # writes go.sum and that diff can never fire. Verified on 1.25 and 1.26
+          # that a committed go.sum missing a direct dependency's h1: line, and a
+          # committed go.mod missing an indirect require, both pass
+          # download + diff + verify, and both are caught by tidy -diff.
+          go mod tidy -diff
+          go mod verify
+      - run: go vet ./...
+      - run: go test ./...
       - uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser

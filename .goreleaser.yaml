@@ -27,6 +27,17 @@ builds:
         goarch: '386'
       - goos: openbsd
         goarch: arm
+      # The two entries below are different in kind from the ones above: they no
+      # longer exist at all in the toolchain go.mod pins. 32-bit darwin/arm went
+      # in Go 1.16, and windows/arm was broken in 1.24 and removed in 1.25, so
+      # neither appears in `go tool dist list` for 1.25 and neither has ever been
+      # in a release. Listing them costs no artifact and stops the exclusions
+      # depending on goreleaser's internal target list. (openbsd/arm above IS a
+      # valid 1.25 target, excluded by choice, so do not tidy it away with these.)
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
     flags:
       - -trimpath
     ldflags:

@@ -53,7 +53,12 @@ Each of these will have a number next to it if more than one file matches.
 
 ## Installation
 
-Requires Go 1.15+
+Builds with the Go 1.25 toolchain. Go 1.21 through 1.24 will download it
+automatically on first build, which needs network access to the toolchain proxy;
+with `GOTOOLCHAIN=local`, or on any Go below 1.21, install Go 1.25 yourself.
+macOS binaries published from this fork's own releases require macOS 12 or
+later, that being Go 1.25's floor. Upstream's releases predate that floor and
+carry no such requirement.
 
 `powerline-go` uses ANSI color codes, these should nowadays work everywhere,
 but you may have to set your $TERM to `xterm-256color` for it to work.
