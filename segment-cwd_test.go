@@ -52,6 +52,64 @@ func Test_cwdToPathSegments(t *testing.T) {
 	}
 }
 
+// Plain mode shares cwdToPathSegments with the segmented modes, so home
+// abbreviation, path normalisation and -path-aliases cannot drift between them.
+// The absolute leading separator that cwdToPathSegments drops has to survive the
+// round trip.
+func Test_segmentCwd_plain(t *testing.T) {
+	tests := []struct {
+		name    string
+		cwd     string
+		aliases AliasMap
+		want    string
+	}{
+		{name: "absolute path keeps its leading separator", cwd: "/etc/nginx", want: "/etc/nginx"},
+		{name: "root", cwd: "/", want: "/"},
+		{name: "double slash normalises to root", cwd: "//", want: "/"},
+		{name: "interior double slash collapses", cwd: "/etc//nginx", want: "/etc/nginx"},
+		{name: "home", cwd: "/home/test", want: "~"},
+		{name: "inside home", cwd: "/home/test/proj", want: "~/proj"},
+		{name: "sibling of home is not home", cwd: "/home/testother", want: "/home/testother"},
+		{name: "relative cwd gains no separator", cwd: "foo/bar", want: "foo/bar"},
+		{
+			name:    "alias replacing the leading run drops the separator",
+			cwd:     "/etc/nginx",
+			aliases: AliasMap{"/etc": "@E"},
+			want:    "@E/nginx",
+		},
+		{
+			name:    "alias under home",
+			cwd:     "/home/test/work/x",
+			aliases: AliasMap{"~/work": "@W"},
+			want:    "@W/x",
+		},
+		{
+			name:    "alias mid-path, as in the segmented modes",
+			cwd:     "/etc/nginx/conf",
+			aliases: AliasMap{"nginx": "@N"},
+			want:    "/etc/@N/conf",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", "/home/test")
+			p := testCwdPowerline(tt.cwd, "plain")
+			if tt.aliases != nil {
+				p.cfg.PathAliases = tt.aliases
+			}
+
+			segs := segmentCwd(p)
+
+			if len(segs) != 1 {
+				t.Fatalf("segmentCwd(%q) in plain = %d segments, want 1", tt.cwd, len(segs))
+			}
+			if segs[0].Content != tt.want {
+				t.Errorf("segmentCwd(%q) in plain = %q, want %q", tt.cwd, segs[0].Content, tt.want)
+			}
+		})
+	}
+}
+
 // Regression test for #424: `cd //` used to panic. bash exports PWD="//",
 // which reached cwdToPathSegments and produced zero segments; dironly mode
 // then sliced pathSegments[len-1:] = [-1:] and panicked.
