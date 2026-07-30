@@ -475,8 +475,9 @@ Pass `-path-aliases-case-insensitive` to match alias paths regardless of case,
 which is useful on case-insensitive filesystems such as macOS or Windows.
 
 Aliases match whole path components, and they match in every `-cwd-mode`
-including `plain`: an alias for `foo/bar` replaces that pair of components
-wherever they appear in the path, not only at its start.
+including `plain`: an alias for `foo/bar` matches that pair of components
+anywhere in the path, not only at its start. Each alias replaces its first
+(leftmost) match, and where two aliases could both match, the longer key wins.
 
 ### Duration
 

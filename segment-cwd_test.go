@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os/user"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +52,61 @@ func Test_cwdToPathSegments(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The alias matcher slides a window of the key's length along the path segments.
+// Its bound used to shrink as the window advanced, so a window was only found in
+// the first half of the path and an alias covering the final component never
+// matched unless it started at index 0. This walks every window size at every
+// offset over a fixed path, which is where that bug lives: below the cwd modes,
+// so it covers the segmented modes as well as plain.
+func Test_maybeAliasPathSegments_everyWindow(t *testing.T) {
+	const cwd = "/a/b/c/d"
+	segments := []string{"a", "b", "c", "d"}
+
+	for size := 1; size <= len(segments); size++ {
+		for offset := 0; offset+size <= len(segments); offset++ {
+			key := strings.Join(segments[offset:offset+size], "/")
+
+			want := make([]string, 0, len(segments))
+			want = append(want, segments[:offset]...)
+			want = append(want, "@X")
+			want = append(want, segments[offset+size:]...)
+
+			t.Run(fmt.Sprintf("size=%d offset=%d key=%s", size, offset, key), func(t *testing.T) {
+				t.Setenv("HOME", "/home/test")
+				p := testCwdPowerline(cwd, "fancy")
+				p.cfg.PathAliases = AliasMap{key: "@X"}
+
+				got := segmentPaths(cwdToPathSegments(p, cwd))
+
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("alias %q on %s = %v, want %v", key, cwd, got, want)
+				}
+			})
+		}
+	}
+}
+
+// Two aliases of equal length competing for the same path must resolve the same
+// way every time. Sorting the keys on length alone left equal-length keys in Go's
+// randomised map iteration order, so the same cwd rendered a different prompt
+// between invocations. The tie is broken lexicographically, so "app/lib" wins.
+func Test_maybeAliasPathSegments_equalLengthKeysAreDeterministic(t *testing.T) {
+	const cwd = "/src/app/lib"
+	want := []string{"src", "@L"}
+
+	for i := 0; i < 50; i++ {
+		t.Setenv("HOME", "/home/test")
+		p := testCwdPowerline(cwd, "fancy")
+		p.cfg.PathAliases = AliasMap{"src/app": "@A", "app/lib": "@L"}
+
+		got := segmentPaths(cwdToPathSegments(p, cwd))
+
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("iteration %d: %s = %v, want %v (equal-length keys must not depend on map order)", i, cwd, got, want)
+		}
 	}
 }
 

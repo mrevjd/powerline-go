@@ -20,18 +20,6 @@ type pathSegment struct {
 	alias    bool
 }
 
-type byRevLength []string
-
-func (s byRevLength) Len() int {
-	return len(s)
-}
-func (s byRevLength) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byRevLength) Less(i, j int) bool {
-	return len(s[i]) > len(s[j])
-}
-
 // segEqual compares two path segments, honouring the case-insensitive option.
 func segEqual(a, b string, caseInsensitive bool) bool {
 	if caseInsensitive {
@@ -53,8 +41,17 @@ func maybeAliasPathSegments(p *powerline, pathSegments []pathSegment) []pathSegm
 	for k := range p.cfg.PathAliases {
 		keys = append(keys, k)
 	}
-	// Longest key first, so the most specific alias wins.
-	sort.Sort(byRevLength(keys))
+	// Longest key first, so the most specific alias wins, then lexicographically
+	// so the order is total. Sorting on length alone left keys of equal length in
+	// Go's randomised map iteration order, and sort.Sort is not stable, so two
+	// aliases of the same length competing for the same path rendered a different
+	// prompt from one invocation to the next.
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
 
 Aliases:
 	for _, k := range keys {
@@ -207,6 +204,10 @@ func plainPath(cwd string, pathSegments []pathSegment) string {
 	// a Windows UNC path keeps its "\\" prefix. Taking it from the normalised
 	// path keeps POSIX behaviour intact: path.Clean collapses "//" to "/" but
 	// leaves backslashes alone, since it only understands "/".
+	//
+	// A Windows drive root renders as "C:" rather than "C:\", because the trailing
+	// separator is not part of any segment. That matches what the segmented modes
+	// have always shown there, so plain mode is no longer the odd one out.
 	cleaned := path.Clean(cwd)
 	return cleaned[:len(cleaned)-len(strings.TrimLeft(cleaned, pathSeparator))] + joined
 }
