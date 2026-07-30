@@ -24,6 +24,7 @@ type ShellInfo struct {
 	EscapedDollar         string
 	EscapedBacktick       string
 	EscapedBackslash      string
+	EscapedPercent        string
 	EvalPromptPrefix      string
 	EvalPromptSuffix      string
 	EvalPromptRightPrefix string
@@ -315,13 +316,15 @@ func (p *powerline) truncateRow(rowNum int) {
 
 // escapeVariables neutralises the characters that would otherwise start a
 // substitution when the shell expands the prompt. Every shell supplies its own
-// replacements; "bare" performs no prompt expansion, so its replacements are
-// the characters themselves. The backslash is replaced first so the backslashes
-// introduced by the later two are not escaped a second time.
+// replacements: "bare" performs no prompt expansion at all, and `%` begins an
+// expansion only in zsh, so those replacements are the characters themselves.
+// The backslash is replaced first so the backslashes introduced by the next two
+// are not escaped a second time; `%` introduces none and so can come last.
 func (p *powerline) escapeVariables(text string) string {
 	text = escapeChar(text, `\`, p.shell.EscapedBackslash)
 	text = escapeChar(text, "`", p.shell.EscapedBacktick)
 	text = escapeChar(text, `$`, p.shell.EscapedDollar)
+	text = escapeChar(text, `%`, p.shell.EscapedPercent)
 	return text
 }
 

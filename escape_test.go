@@ -43,14 +43,16 @@ func renderPrompt(t *testing.T, shell string, modules ...string) string {
 	return newPowerline(cfg, cwd, alignLeft).draw()
 }
 
-func assertEscaped(t *testing.T, shell, prompt string) {
+// assertEscaped checks that payload reached the prompt in its escaped form and
+// that the raw payload is not also there. A shell whose escaped form is the
+// payload itself expands nothing, so for it only the first check applies.
+func assertEscaped(t *testing.T, prompt, payload, want string) {
 	t.Helper()
-	want := escapedInjection[shell]
 	if !strings.Contains(prompt, want) {
 		t.Errorf("prompt is missing the escaped payload %q:\n%q", want, prompt)
 	}
-	if want != injection && strings.Contains(prompt, injection) {
-		t.Errorf("prompt carries the payload %q unescaped:\n%q", injection, prompt)
+	if want != payload && strings.Contains(prompt, payload) {
+		t.Errorf("prompt carries the payload %q unescaped:\n%q", payload, prompt)
 	}
 }
 
@@ -72,7 +74,7 @@ func Test_promptEscapesPackageVersion(t *testing.T) {
 
 	for _, shell := range shells() {
 		t.Run(shell, func(t *testing.T) {
-			assertEscaped(t, shell, renderPrompt(t, shell, "node"))
+			assertEscaped(t, renderPrompt(t, shell, "node"), injection, escapedInjection[shell])
 		})
 	}
 }
@@ -106,7 +108,7 @@ func Test_promptEscapesGitBranch(t *testing.T) {
 
 	for _, shell := range shells() {
 		t.Run(shell, func(t *testing.T) {
-			assertEscaped(t, shell, renderPrompt(t, shell, "git"))
+			assertEscaped(t, renderPrompt(t, shell, "git"), injection, escapedInjection[shell])
 		})
 	}
 }
@@ -138,26 +140,69 @@ func Test_promptEscapesPluginOutput(t *testing.T) {
 
 	for _, shell := range shells() {
 		t.Run(shell, func(t *testing.T) {
-			assertEscaped(t, shell, renderPrompt(t, shell, "inject-test"))
+			assertEscaped(t, renderPrompt(t, shell, "inject-test"), injection, escapedInjection[shell])
 		})
 	}
 }
 
-// The escaping must not reach the segments that are prompt templates. Only
-// bash can regress here: its templates are backslash escapes, whereas zsh's
-// are `%` sequences that carry nothing the escaping touches.
+// zsh expands `%` sequences whenever it draws the prompt, with or without
+// PROMPT_SUBST, so a directory, branch or venv name holding them is prompt
+// markup rather than text. This is display corruption and prompt spoofing
+// (%n and %m are the real username and host, %F{red} a colour, %(x.a.b) a
+// conditional) rather than command execution, but it is the same class of bug
+// as $ and a backtick, and the same fix. Confirmed against zsh 5.9: in a
+// directory named `%n@%m` an unescaped prompt renders the real user and host.
+const percentInjection = "%n@%m"
+
+// bash's prompt expansion has no `%` sequences and "bare" expands nothing, so
+// for both the payload is expected to pass through as literal text.
+var escapedPercentInjection = map[string]string{
+	"bash": percentInjection,
+	"zsh":  `%%n@%%m`,
+	"bare": percentInjection,
+}
+
+func Test_promptEscapesZshPromptSequences(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), percentInjection)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	for _, shell := range shells() {
+		t.Run(shell, func(t *testing.T) {
+			assertEscaped(t, renderPrompt(t, shell, "cwd"), percentInjection, escapedPercentInjection[shell])
+		})
+	}
+}
+
+// The escaping must not reach the segments that are prompt templates. Both
+// shells can regress here, because the escaping rewrites the lead character of
+// bash's backslash templates and of zsh's `%` templates alike.
 func Test_promptKeepsShellTemplates(t *testing.T) {
 	t.Setenv("TERM", "xterm")
-	prompt := renderPrompt(t, "bash", "user", "host", "root", "termtitle")
 
-	for _, want := range []string{`\u`, `\h`, `\$`, `\[\e]0;`} {
-		if !strings.Contains(prompt, want) {
-			t.Errorf("prompt is missing the bash template %q:\n%q", want, prompt)
-		}
-	}
-	// An escaped template would show up as a doubled backslash; nothing bash
-	// legitimately emits here contains one.
-	if strings.Contains(prompt, `\\`) {
-		t.Errorf("a bash prompt template was escaped:\n%q", prompt)
+	for _, tc := range []struct {
+		shell     string
+		templates []string
+		// doubled is what an escaped template would show up as. Nothing the
+		// shell legitimately emits in these segments contains one: zsh's
+		// colour template renders as a single `%{`, bash's as `\[`.
+		doubled string
+	}{
+		{"bash", []string{`\u`, `\h`, `\$`, `\[\e]0;`}, `\\`},
+		{"zsh", []string{`%n`, `%m`, `%#`, "%{\033]0;%n@%m: %~"}, `%%`},
+	} {
+		t.Run(tc.shell, func(t *testing.T) {
+			prompt := renderPrompt(t, tc.shell, "user", "host", "root", "termtitle")
+			for _, want := range tc.templates {
+				if !strings.Contains(prompt, want) {
+					t.Errorf("prompt is missing the %s template %q:\n%q", tc.shell, want, prompt)
+				}
+			}
+			if strings.Contains(prompt, tc.doubled) {
+				t.Errorf("a %s prompt template was escaped (%q):\n%q", tc.shell, tc.doubled, prompt)
+			}
+		})
 	}
 }

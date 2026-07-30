@@ -405,12 +405,19 @@ A module name that powerline-go does not recognise is run as a
 `powerline-go-MODULE` executable found on `PATH`, and its stdout is parsed as a
 JSON list of segments.
 
-Segment content is treated as text, not as prompt markup: powerline-go escapes
-the characters a shell would expand (`$`, a backtick, a backslash) as it writes
-the prompt. A plugin therefore cannot emit prompt escape sequences of its own.
-It also means a plugin that reports on something it does not control, such as a
-branch name, a ticket title or a cluster name, cannot be turned into command
-execution by whoever does control it.
+A segment's `Content` is treated as text, not as prompt markup: powerline-go
+escapes the characters a shell would expand (`$`, a backtick, a backslash, and
+under zsh also `%`) as it writes the prompt. So a plugin that reports on
+something it does not control, such as a branch name, a ticket title or a
+cluster name, cannot let whoever does control it write prompt markup.
+
+Two limits on that, both older than the escaping and neither fixed yet. It
+covers `Content` only, not a segment's `Separator`, which is written verbatim.
+And `-eval` mode assigns the prompt through a double-quoted `PS1="..."` /
+`PROMPT="..."`, whose parse consumes one level of backslash escaping, so on that
+path `$` and backtick substitutions still reach the prompt live. Prefer the
+non-`eval` setup for a repository that is not yours. The `%` escaping is
+unaffected, because `%` is not special to that parse.
 
 ### Eval
 
