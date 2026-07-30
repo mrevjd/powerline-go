@@ -142,6 +142,7 @@ var defaults = Config{
 			EscapedBackslash: `\\\\`,
 			EscapedBacktick:  "\\`",
 			EscapedDollar:    `\$`,
+			EscapedPercent:   `%`,
 			EvalPromptPrefix: `PS1="`,
 			EvalPromptSuffix: `"`,
 		},
@@ -151,6 +152,7 @@ var defaults = Config{
 			EscapedBackslash:      `\\`,
 			EscapedBacktick:       "\\`",
 			EscapedDollar:         `\$`,
+			EscapedPercent:        `%%`,
 			EvalPromptPrefix:      `PROMPT="`,
 			EvalPromptSuffix:      `"`,
 			EvalPromptRightPrefix: `RPROMPT="`,
@@ -162,6 +164,7 @@ var defaults = Config{
 			EscapedBackslash: `\`,
 			EscapedBacktick:  "`",
 			EscapedDollar:    `$`,
+			EscapedPercent:   `%`,
 		},
 	},
 	Themes: ThemeMap{
