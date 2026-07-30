@@ -313,6 +313,28 @@ func (p *powerline) truncateRow(rowNum int) {
 	p.Segments[rowNum] = row
 }
 
+// escapeVariables neutralises the characters that would otherwise start a
+// substitution when the shell expands the prompt. Every shell supplies its own
+// replacements; "bare" performs no prompt expansion, so its replacements are
+// the characters themselves. The backslash is replaced first so the backslashes
+// introduced by the later two are not escaped a second time.
+func (p *powerline) escapeVariables(text string) string {
+	text = escapeChar(text, `\`, p.shell.EscapedBackslash)
+	text = escapeChar(text, "`", p.shell.EscapedBacktick)
+	text = escapeChar(text, `$`, p.shell.EscapedDollar)
+	return text
+}
+
+// escapeChar replaces char with the escaped form the shell asked for. A shell
+// that defines no replacement (an incomplete entry in a config's Shells map)
+// leaves the character as it is; deleting it would silently corrupt the prompt.
+func escapeChar(text, char, escaped string) string {
+	if escaped == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, char, escaped)
+}
+
 func (p *powerline) numEastAsianRunes(segmentContent *string) int {
 	if !p.cfg.EastAsianWidth {
 		return 0
@@ -341,8 +363,16 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 		buffer.WriteRune(' ')
 	}
 	for idx, segment := range row {
+		// The single point where segment content reaches the prompt template.
+		// Escaping here rather than in each segment means a new segment cannot
+		// forget to do it, and keeps the escaping out of the widths computed
+		// for truncation, which measure what is displayed.
+		content := segment.Content
+		if !segment.ShellTemplate {
+			content = p.escapeVariables(content)
+		}
 		if segment.HideSeparators {
-			buffer.WriteString(segment.Content)
+			buffer.WriteString(content)
 			continue
 		}
 		var separatorBackground string
@@ -374,7 +404,7 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 		if !p.cfg.Condensed {
 			buffer.WriteRune(' ')
 		}
-		buffer.WriteString(segment.Content)
+		buffer.WriteString(content)
 		numEastAsianRunes += p.numEastAsianRunes(&segment.Content)
 		if !p.cfg.Condensed {
 			buffer.WriteRune(' ')

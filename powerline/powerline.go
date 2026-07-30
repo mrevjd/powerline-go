@@ -21,7 +21,15 @@ type Segment struct {
 	Priority int
 	// HideSeparators indicated not to display any separator with next segment.
 	HideSeparators bool
-	Width          int
+	// ShellTemplate marks Content as a prompt template written for the current
+	// shell (an escape sequence, or a `\u`/`%n`-style expansion) that has to
+	// reach the prompt verbatim. Content is otherwise treated as data and is
+	// shell-escaped when the prompt is rendered, so anything derived from a
+	// repository, an environment variable or a plugin cannot be evaluated by
+	// the shell. Leave this false unless the segment builds the template
+	// itself.
+	ShellTemplate bool
+	Width         int
 	// NewLine defines a newline segment to break the powerline in multi lines
 	NewLine bool
 }

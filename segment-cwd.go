@@ -255,13 +255,6 @@ func maybeShortenName(p *powerline, pathSegment string) string {
 	return pathSegment
 }
 
-func escapeVariables(p *powerline, pathSegment string) string {
-	pathSegment = strings.Replace(pathSegment, `\`, p.shell.EscapedBackslash, -1)
-	pathSegment = strings.Replace(pathSegment, "`", p.shell.EscapedBacktick, -1)
-	pathSegment = strings.Replace(pathSegment, `$`, p.shell.EscapedDollar, -1)
-	return pathSegment
-}
-
 func getColor(p *powerline, pathSegment pathSegment, isLastDir bool) (uint8, uint8, bool) {
 	if pathSegment.home && p.theme.HomeSpecialDisplay {
 		return p.theme.HomeFg, p.theme.HomeBg, true
@@ -283,7 +276,7 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 		// normalisation and -path-aliases cannot drift between modes. See #406.
 		segments = append(segments, pwl.Segment{
 			Name:       "cwd",
-			Content:    escapeVariables(p, plainPath(cwd, cwdToPathSegments(p, cwd))),
+			Content:    plainPath(cwd, cwdToPathSegments(p, cwd)),
 			Foreground: p.theme.CwdFg,
 			Background: p.theme.PathBg,
 		})
@@ -342,7 +335,7 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 			foreground, background, special := getColor(p, pathSegment, isLastDir)
 
 			segment := pwl.Segment{
-				Content:    escapeVariables(p, maybeShortenName(p, pathSegment.path)),
+				Content:    maybeShortenName(p, pathSegment.path),
 				Foreground: foreground,
 				Background: background,
 			}

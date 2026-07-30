@@ -13,9 +13,10 @@ func segmentRoot(p *powerline) []pwl.Segment {
 	}
 
 	return []pwl.Segment{{
-		Name:       "root",
-		Content:    p.shell.RootIndicator,
-		Foreground: foreground,
-		Background: background,
+		Name:          "root",
+		Content:       p.shell.RootIndicator,
+		Foreground:    foreground,
+		Background:    background,
+		ShellTemplate: true, // e.g. bash's `\$`, which the shell expands itself
 	}}
 }

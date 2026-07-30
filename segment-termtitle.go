@@ -33,5 +33,6 @@ func segmentTermTitle(p *powerline) []pwl.Segment {
 		Content:        title,
 		Priority:       MaxInteger, // do not truncate
 		HideSeparators: true,       // do not draw separators
+		ShellTemplate:  true,       // the content is the title escape sequence
 	}}
 }
