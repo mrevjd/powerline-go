@@ -81,8 +81,12 @@ Aliases:
 			max := (i + size) - 1
 
 			// But if the upper index is out of bounds we can short-circuit
-			// and move on to the next alias.
-			if max > (len(pathSegments)-i)-1 {
+			// and move on to the next alias. The bound is the last valid index:
+			// comparing against len(pathSegments)-i-1 instead made the limit
+			// shrink as i advanced, so a run was only ever found in the first
+			// half of the path and an alias covering the final segment never
+			// matched unless it started at index 0.
+			if max > len(pathSegments)-1 {
 				continue Aliases
 			}
 

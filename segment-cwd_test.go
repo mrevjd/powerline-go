@@ -89,6 +89,18 @@ func Test_segmentCwd_plain(t *testing.T) {
 			aliases: AliasMap{"nginx": "@N"},
 			want:    "/etc/@N/conf",
 		},
+		{
+			name:    "alias covering the last component",
+			cwd:     "/etc/nginx",
+			aliases: AliasMap{"nginx": "@N"},
+			want:    "/etc/@N",
+		},
+		{
+			name:    "multi-component alias covering the last components",
+			cwd:     "/proj/src/main",
+			aliases: AliasMap{"src/main": "@SM"},
+			want:    "/proj/@SM",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
