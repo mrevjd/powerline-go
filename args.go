@@ -248,8 +248,11 @@ var args = arguments{
 		"shlvl-min",
 		defaults.MinShlvl,
 		comments("Minimum $SHLVL before the shlvl module shows the shell nesting depth")),
+	// The default is a literal false rather than defaults.Bold, which is a *bool
+	// whose nil means "leave the theme's own setting alone". It is only read when
+	// -bold is absent, in which case main never copies it into the config.
 	Bold: flag.Bool(
 		"bold",
-		defaults.Bold,
-		comments("Use bold text for segment foregrounds")),
+		false,
+		comments("Use bold text for segment foregrounds, overriding the theme's own setting. Pass -bold=false to force non-bold.")),
 }

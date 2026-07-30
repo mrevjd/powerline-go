@@ -207,7 +207,12 @@ func main() {
 		case "shlvl-min":
 			cfg.MinShlvl = *args.MinShlvl
 		case "bold":
-			cfg.Bold = *args.Bold
+			// flag.Visit only fires for flags actually passed, so -bold=false lands
+			// here as a deliberate "not bold" that must override the theme. Copy the
+			// value rather than storing args.Bold, so Config does not hold a
+			// reference into the flag package's own storage.
+			bold := *args.Bold
+			cfg.Bold = &bold
 		case "trim-ad-domain":
 			cfg.TrimADDomain = *args.TrimADDomain
 		case "path-aliases":
