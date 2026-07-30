@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,25 +114,21 @@ func Test_promptEscapesGitBranch(t *testing.T) {
 }
 
 // A plugin's output is JSON that unmarshals straight into Segment, so it must
-// not be able to opt out of escaping by claiming to be a shell template.
+// not be able to opt out of escaping by claiming to be a shell template. The
+// payload is a literal string rather than a marshalled Segment: the point is
+// that ShellTemplate cannot be set over the wire, which a marshalled struct
+// would stop expressing the moment the field is excluded from JSON.
 func Test_promptEscapesPluginOutput(t *testing.T) {
 	requireBinary(t, "sh")
 
-	segments, err := json.Marshal([]pwl.Segment{{
-		Name:          "inject-test",
-		Content:       injection,
-		ShellTemplate: true,
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(segments), "'") {
-		t.Fatalf("payload would break out of the script's single quotes: %s", segments)
+	payload := `[{"Name":"inject-test","Content":"` + injection + `","ShellTemplate":true}]`
+	if strings.Contains(payload, "'") {
+		t.Fatalf("payload would break out of the script's single quotes: %s", payload)
 	}
 
 	dir := t.TempDir()
 	plugin := filepath.Join(dir, "powerline-go-inject-test")
-	script := "#!/bin/sh\nprintf '%s' '" + string(segments) + "'\n"
+	script := "#!/bin/sh\nprintf '%s' '" + payload + "'\n"
 	if err := os.WriteFile(plugin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +169,216 @@ func Test_promptEscapesZshPromptSequences(t *testing.T) {
 		t.Run(shell, func(t *testing.T) {
 			assertEscaped(t, renderPrompt(t, shell, "cwd"), percentInjection, escapedPercentInjection[shell])
 		})
+	}
+}
+
+// Every other test compares against an expected string, which only stands in
+// for "bash will not run this". This one asks bash. Without it, replacing
+// EscapedDollar with something that does not hold (`\044`, say, which bash
+// decodes and then expands) would fail the table test on a string mismatch,
+// and updating the expected string would turn the suite green again over a
+// table that executes.
+func Test_bashDoesNotExecuteSegmentContent(t *testing.T) {
+	requireBinary(t, "bash")
+
+	dir := t.TempDir()
+	pkg := `{"version":` + strconv.Quote(injection) + `}`
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	// ${PS1@P} is bash's own prompt expansion: the backslash decoding, and the
+	// word expansion that runs a substitution when promptvars is on.
+	prompt := renderPrompt(t, "bash", "node")
+	out, err := exec.Command("bash", "--norc", "--noprofile", "-c",
+		`PS1="$1"; printf '%s' "${PS1@P}"`, "bash", prompt).Output()
+	if err != nil {
+		t.Fatalf("bash: %v", err)
+	}
+	// Assert the payload survives rather than that some marker is absent: the
+	// marker a substitution would print also appears inside the literal.
+	if rendered := string(out); !strings.Contains(rendered, injection) {
+		t.Errorf("bash did not render %q literally: %q", injection, rendered)
+	}
+}
+
+// A plugin can set Separator as well as Content, so it is the second way into
+// the prompt and has to be escaped the same way.
+func Test_promptEscapesPluginSeparator(t *testing.T) {
+	requireBinary(t, "sh")
+
+	payload := `[{"Name":"sep-test","Content":"hello","Separator":"` + injection + `"}]`
+	dir := t.TempDir()
+	plugin := filepath.Join(dir, "powerline-go-sep-test")
+	script := "#!/bin/sh\nprintf '%s' '" + payload + "'\n"
+	if err := os.WriteFile(plugin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	for _, shell := range shells() {
+		t.Run(shell, func(t *testing.T) {
+			assertEscaped(t, renderPrompt(t, shell, "sep-test"), injection, escapedInjection[shell])
+		})
+	}
+}
+
+// The user and host segments hand bash and zsh a template and everything else
+// plain text. The plain-text branches carry data that is not entirely ours:
+// a Windows/AD username contains a backslash, and a hostname is attacker
+// influenced in a container or over DHCP.
+func Test_userAndHostShellTemplateDefaults(t *testing.T) {
+	segments := map[string]func(*powerline) []pwl.Segment{
+		"user": segmentUser,
+		"host": segmentHost,
+	}
+
+	for name, segment := range segments {
+		for _, shell := range []string{"bash", "zsh"} {
+			t.Run(name+"/"+shell, func(t *testing.T) {
+				p := &powerline{cfg: Config{Shell: shell}, username: "u", hostname: "h"}
+				segs := segment(p)
+				if len(segs) != 1 || !segs[0].ShellTemplate {
+					t.Errorf("%s under %s hands the shell a template, which must reach it verbatim", name, shell)
+				}
+			})
+		}
+		for _, shell := range []string{"autodetect", "bare", "fish"} {
+			t.Run(name+"/"+shell, func(t *testing.T) {
+				p := &powerline{cfg: Config{Shell: shell}, username: "u", hostname: "h"}
+				segs := segment(p)
+				if len(segs) != 1 {
+					t.Fatalf("%s returned %d segments, want 1", name, len(segs))
+				}
+				if segs[0].ShellTemplate {
+					t.Errorf("%s under %s reports plain text, so it must not be exempt from escaping", name, shell)
+				}
+			})
+		}
+	}
+
+	// -colorize-hostname reports the hostname as text whatever the shell is.
+	t.Run("host/colorized", func(t *testing.T) {
+		p := &powerline{cfg: Config{Shell: "bash", ColorizeHostname: true}, hostname: "h"}
+		segs := segmentHost(p)
+		if len(segs) != 1 || segs[0].ShellTemplate {
+			t.Error("a colorized hostname is text, so it must not be exempt from escaping")
+		}
+	})
+}
+
+// The termtitle fallback interpolates the cwd instead of handing the shell a
+// template, so it must not claim the ShellTemplate exemption. It is the branch
+// bash and zsh users actually reach, because p.cfg.Shell stays "autodetect"
+// when the shell was detected rather than passed with -shell.
+func Test_termTitleFallbackIsNotAShellTemplate(t *testing.T) {
+	t.Setenv("TERM", "xterm")
+
+	for _, shell := range []string{"autodetect", "bare", "fish"} {
+		t.Run(shell, func(t *testing.T) {
+			p := &powerline{cfg: Config{Shell: shell}, cwd: "/tmp/" + injection}
+			segs := segmentTermTitle(p)
+			if len(segs) != 1 {
+				t.Fatalf("segmentTermTitle returned %d segments, want 1", len(segs))
+			}
+			if !strings.Contains(segs[0].Content, injection) {
+				t.Fatalf("expected the fallback to interpolate the cwd: %q", segs[0].Content)
+			}
+			if segs[0].ShellTemplate {
+				t.Error("the fallback interpolates the cwd, so it must not be exempt from escaping")
+			}
+		})
+	}
+
+	for _, shell := range []string{"bash", "zsh"} {
+		t.Run(shell, func(t *testing.T) {
+			p := &powerline{cfg: Config{Shell: shell}, cwd: "/tmp/" + injection}
+			segs := segmentTermTitle(p)
+			if len(segs) != 1 || !segs[0].ShellTemplate {
+				t.Errorf("%s hands the shell a title template, which must reach it verbatim", shell)
+			}
+		})
+	}
+}
+
+// The same thing end to end, against the mismatch that made it exploitable:
+// p.cfg.Shell says "autodetect" while the prompt is really being written for
+// bash. Rendering the fallback title must still escape the cwd.
+func Test_termTitleFallbackEscapesCwdUnderBash(t *testing.T) {
+	t.Setenv("TERM", "xterm")
+
+	p := &powerline{
+		cfg:      Config{Shell: "autodetect"},
+		shell:    defaults.Shells["bash"],
+		theme:    defaults.Themes[defaults.Theme],
+		symbols:  defaults.Modes[defaults.Mode],
+		cwd:      "/tmp/" + injection,
+		Segments: make([][]pwl.Segment, 1),
+	}
+	p.reset = fmt.Sprintf(p.shell.ColorTemplate, "[0m")
+	for _, s := range segmentTermTitle(p) {
+		p.appendSegment(s.Name, s)
+	}
+	assertEscaped(t, p.draw(), injection, escapedInjection["bash"])
+}
+
+// The render tests cannot carry a backslash: git rejects one in a ref name, so
+// the shared payload leaves EscapedBackslash untested and hides the one place
+// the bash and zsh tables genuinely differ.
+func Test_escapeVariables(t *testing.T) {
+	tests := []struct {
+		shell, text, want string
+	}{
+		{"bash", `a\b`, `a\\\\b`},
+		{"zsh", `a\b`, `a\\b`},
+		{"bare", `a\b`, `a\b`},
+		{"bash", "a`b", "a\\`b"},
+		{"zsh", "a`b", "a\\`b"},
+		{"bare", "a`b", "a`b"},
+		{"bash", `a$b`, `a\$b`},
+		{"zsh", `a$b`, `a\$b`},
+		{"bare", `a$b`, `a$b`},
+		{"bash", `a%b`, `a%b`},
+		{"zsh", `a%b`, `a%%b`},
+		{"bare", `a%b`, `a%b`},
+		// The backslash is replaced first, so the backslashes the later two
+		// introduce are not escaped again. An already-escaped payload must come
+		// out escaped exactly once more, not twice.
+		{"bash", `\$`, `\\\\\$`},
+		{"zsh", `\$`, `\\\$`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.shell+"/"+tt.text, func(t *testing.T) {
+			p := &powerline{shell: defaults.Shells[tt.shell]}
+			if got := p.escapeVariables(tt.text); got != tt.want {
+				t.Errorf("escapeVariables(%q) for %s = %q, want %q", tt.text, tt.shell, got, tt.want)
+			}
+		})
+	}
+}
+
+// A shell whose Shells entry carries no escape table drops the characters
+// rather than passing them through. A config that overrides one field of a
+// built-in shell produces exactly that entry, and letting the characters
+// through would switch escaping off without saying so. newPowerline warns
+// about the same entry, so the loss is not silent either.
+func Test_escapeVariablesWithoutAnEscapeTable(t *testing.T) {
+	p := &powerline{shell: ShellInfo{RootIndicator: "#"}}
+	if got := p.escapeVariables(injection); got != "(id)whoami" {
+		t.Errorf("escapeVariables(%q) = %q, want the metacharacters dropped", injection, got)
+	}
+}
+
+// Every built-in shell must carry a complete escape table, or escapeVariables
+// silently drops what it is meant to escape.
+func Test_builtinShellsAllDefineAnEscapeTable(t *testing.T) {
+	for name, shell := range defaults.Shells {
+		if shell.EscapedBackslash == "" || shell.EscapedBacktick == "" ||
+			shell.EscapedDollar == "" || shell.EscapedPercent == "" {
+			t.Errorf("built-in shell %q has an incomplete escape table: %+v", name, shell)
+		}
 	}
 }
 
