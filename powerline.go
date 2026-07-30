@@ -96,6 +96,17 @@ func newPowerline(cfg Config, cwd string, align alignment) *powerline {
 		cfg.Shell = detectShell(shellExe)
 	}
 	p.shell = cfg.Shells[cfg.Shell]
+	// Without an escape table escapeVariables drops the characters it would
+	// otherwise escape, so the prompt loses them instead of showing them. A
+	// config reaches that state by overriding a built-in shell: encoding/json
+	// zeroes the destination before decoding, so setting one field of a shells
+	// entry replaces the whole entry. Say so rather than quietly mangling the
+	// prompt. Left-aligned only, or the right prompt repeats it.
+	if align == alignLeft && (p.shell.EscapedBackslash == "" || p.shell.EscapedBacktick == "" ||
+		p.shell.EscapedDollar == "" || p.shell.EscapedPercent == "") {
+		warn("Shell " + cfg.Shell + " has an incomplete escape table, so $, `, \\ or % are dropped from the " +
+			"prompt. A shells entry in config.json replaces the built-in one instead of merging with it.")
+	}
 	p.reset = fmt.Sprintf(p.shell.ColorTemplate, "[0m")
 	p.symbols = cfg.Modes[cfg.Mode]
 	p.priorities = make(map[string]int)
@@ -320,22 +331,24 @@ func (p *powerline) truncateRow(rowNum int) {
 // expansion only in zsh, so those replacements are the characters themselves.
 // The backslash is replaced first so the backslashes introduced by the next two
 // are not escaped a second time; `%` introduces none and so can come last.
+//
+// An empty replacement drops the character rather than passing it through. That
+// only happens for a shell whose Shells entry has no escape table, which a
+// config can produce by overriding one field of a built-in shell (encoding/json
+// zeroes the destination before decoding, so the override replaces the whole
+// entry). newPowerline warns about such an entry. Losing the character is
+// visible and harmless; letting it through would quietly switch escaping off.
+//
+// `\$` is the only bash escape that survives the promptvars pass intact. Octal
+// is not an alternative: bash re-expands the decoded character, so `\044(id)`
+// executes. The cost of `\$` is that bash renders it as `#` for euid 0, so a
+// literal dollar in a path or branch name shows as `#` to root.
 func (p *powerline) escapeVariables(text string) string {
-	text = escapeChar(text, `\`, p.shell.EscapedBackslash)
-	text = escapeChar(text, "`", p.shell.EscapedBacktick)
-	text = escapeChar(text, `$`, p.shell.EscapedDollar)
-	text = escapeChar(text, `%`, p.shell.EscapedPercent)
+	text = strings.ReplaceAll(text, `\`, p.shell.EscapedBackslash)
+	text = strings.ReplaceAll(text, "`", p.shell.EscapedBacktick)
+	text = strings.ReplaceAll(text, `$`, p.shell.EscapedDollar)
+	text = strings.ReplaceAll(text, `%`, p.shell.EscapedPercent)
 	return text
-}
-
-// escapeChar replaces char with the escaped form the shell asked for. A shell
-// that defines no replacement (an incomplete entry in a config's Shells map)
-// leaves the character as it is; deleting it would silently corrupt the prompt.
-func escapeChar(text, char, escaped string) string {
-	if escaped == "" {
-		return text
-	}
-	return strings.ReplaceAll(text, char, escaped)
 }
 
 func (p *powerline) numEastAsianRunes(segmentContent *string) int {
@@ -366,13 +379,17 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 		buffer.WriteRune(' ')
 	}
 	for idx, segment := range row {
-		// The single point where segment content reaches the prompt template.
-		// Escaping here rather than in each segment means a new segment cannot
-		// forget to do it, and keeps the escaping out of the widths computed
-		// for truncation, which measure what is displayed.
+		// The single point where a segment reaches the prompt template. Escaping
+		// here rather than in each segment means a new segment cannot forget to
+		// do it, and keeps the escaping out of the widths computed for
+		// truncation, which measure what is displayed. The separator is escaped
+		// too: it is normally one of p.symbols, but a plugin can set it, which
+		// would otherwise leave a second way in beside the content.
 		content := segment.Content
+		separator := segment.Separator
 		if !segment.ShellTemplate {
 			content = p.escapeVariables(content)
+			separator = p.escapeVariables(separator)
 		}
 		if segment.HideSeparators {
 			buffer.WriteString(content)
@@ -388,7 +405,7 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 			}
 			buffer.WriteString(separatorBackground)
 			buffer.WriteString(p.fgColor(segment.SeparatorForeground))
-			buffer.WriteString(segment.Separator)
+			buffer.WriteString(separator)
 		} else {
 			if idx >= len(row)-1 {
 				if !p.hasRightModules() || p.supportsRightModules() {
@@ -415,7 +432,7 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 		if !p.isRightPrompt() {
 			buffer.WriteString(separatorBackground)
 			buffer.WriteString(p.fgColor(segment.SeparatorForeground))
-			buffer.WriteString(segment.Separator)
+			buffer.WriteString(separator)
 		}
 		buffer.WriteString(p.reset)
 	}

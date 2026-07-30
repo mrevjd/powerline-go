@@ -27,8 +27,13 @@ type Segment struct {
 	// shell-escaped when the prompt is rendered, so anything derived from a
 	// repository, an environment variable or a plugin cannot be evaluated by
 	// the shell. Leave this false unless the segment builds the template
-	// itself.
-	ShellTemplate bool
+	// itself, and default it to false in a segment that only sometimes does.
+	//
+	// Not settable from JSON: a plugin reports data, and writing prompt markup
+	// is the prompt's job. Excluding it here rather than sanitising it after
+	// decoding means a plugin cannot claim the exemption for its Content or
+	// its Separator, both of which are escaped when the prompt is rendered.
+	ShellTemplate bool `json:"-"`
 	Width         int
 	// NewLine defines a newline segment to break the powerline in multi lines
 	NewLine bool

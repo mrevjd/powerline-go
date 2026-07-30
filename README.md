@@ -403,23 +403,38 @@ Usage of powerline-go:
 
 A module name that powerline-go does not recognise is run as a
 `powerline-go-MODULE` executable found on `PATH`, and its stdout is parsed as a
-JSON list of segments.
+JSON list of segments. A plugin's content and separator are escaped like any
+other segment's; see [Prompt escaping](#prompt-escaping) below.
 
-A segment's `Content` is treated as text, not as prompt markup: powerline-go
-escapes the characters a shell would expand (`$`, a backtick, a backslash, and
-under zsh also `%`) as it writes the prompt. So a plugin that reports on
-something it does not control, such as a branch name, a ticket title or a
-cluster name, cannot let whoever does control it write prompt markup.
+### Prompt escaping
 
-Two limits on that, both older than the escaping and neither fixed yet. It
-covers `Content` only, not a segment's `Separator`, which is written verbatim.
-And `-eval` mode assigns the prompt through a double-quoted `PS1="..."` /
-`PROMPT="..."`, whose parse consumes one level of backslash escaping, so on that
-path `$` and backtick substitutions still reach the prompt live. Prefer the
-non-`eval` setup for a repository that is not yours. The `%` escaping is
-unaffected, because `%` is not special to that parse.
+What a segment displays is text, not prompt markup. Before writing a segment
+into the prompt, powerline-go escapes the characters a shell would treat as the
+start of an expansion: `$`, a backtick, a backslash, and under zsh also `%`. So
+a directory name, a git branch, an environment variable, a Kubernetes context
+or something a plugin relays cannot inject a command into your prompt, however
+it is named. Both halves of a segment are covered, its content and its
+separator.
+
+Three limits are worth knowing:
+
+- **`-eval` is not covered.** The eval wrapper assigns the prompt through a
+  double-quoted `PS1="..."` / `PROMPT="..."`, and the shell strips one level of
+  quoting as it runs that assignment, which undoes the escaping. Under `-eval`,
+  treat segment content you do not control as unsafe, and prefer the non-eval
+  setup for a repository that is not yours. The `%` escaping is unaffected,
+  because `%` is not special to that parse.
+- **Only those characters are escaped.** Terminal control sequences in segment
+  content still reach the terminal. They do not run a command, but they can
+  garble a prompt.
+- **Under bash, a literal `$` displays as `#` when you are root.** `\$` is the
+  only escape that survives bash's prompt expansion intact, and bash renders it
+  as `#` for uid 0.
 
 ### Eval
+
+Note that the escaping described under [Prompt escaping](#prompt-escaping) does
+not survive `-eval`.
 
 If using `eval` and `-modules-right` is desired, the shell setup must be modified slightly, as shown below:
 
