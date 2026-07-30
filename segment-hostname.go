@@ -24,6 +24,9 @@ func getMd5(text string) []byte {
 func segmentHost(p *powerline) []pwl.Segment {
 	var hostPrompt string
 	var foreground, background uint8
+	// Only the bash and zsh branches below hand the shell a prompt template to
+	// expand; every other branch reports the hostname as plain text.
+	shellTemplate := false
 
 	if p.cfg.HostnameOnlyIfSSH {
 		if os.Getenv("SSH_CLIENT") == "" {
@@ -54,8 +57,10 @@ func segmentHost(p *powerline) []pwl.Segment {
 	} else {
 		if p.cfg.Shell == "bash" {
 			hostPrompt = "\\h"
+			shellTemplate = true
 		} else if p.cfg.Shell == "zsh" {
 			hostPrompt = "%m"
+			shellTemplate = true
 		} else {
 			hostPrompt = getHostName(p.hostname, p.cfg.FqdnHostname)
 		}
@@ -65,9 +70,10 @@ func segmentHost(p *powerline) []pwl.Segment {
 	}
 
 	return []pwl.Segment{{
-		Name:       "host",
-		Content:    hostPrompt,
-		Foreground: foreground,
-		Background: background,
+		Name:          "host",
+		Content:       hostPrompt,
+		Foreground:    foreground,
+		Background:    background,
+		ShellTemplate: shellTemplate,
 	}}
 }

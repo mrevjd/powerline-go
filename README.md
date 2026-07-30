@@ -399,6 +399,19 @@ Usage of powerline-go:
          The current vi-mode (eg. KEYMAP for zsh) for vi-module module
 ```
 
+### Plugins
+
+A module name that powerline-go does not recognise is run as a
+`powerline-go-MODULE` executable found on `PATH`, and its stdout is parsed as a
+JSON list of segments.
+
+Segment content is treated as text, not as prompt markup: powerline-go escapes
+the characters a shell would expand (`$`, a backtick, a backslash) as it writes
+the prompt. A plugin therefore cannot emit prompt escape sequences of its own.
+It also means a plugin that reports on something it does not control, such as a
+branch name, a ticket title or a cluster name, cannot be turned into command
+execution by whoever does control it.
+
 ### Eval
 
 If using `eval` and `-modules-right` is desired, the shell setup must be modified slightly, as shown below:

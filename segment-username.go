@@ -6,6 +6,9 @@ import (
 
 func segmentUser(p *powerline) []pwl.Segment {
 	var userPrompt string
+	// bash and zsh expand the username themselves, so those two get a prompt
+	// template; every other shell gets the name as plain text.
+	shellTemplate := true
 	switch p.cfg.Shell {
 	case "bash":
 		userPrompt = "\\u"
@@ -13,6 +16,7 @@ func segmentUser(p *powerline) []pwl.Segment {
 		userPrompt = "%n"
 	default:
 		userPrompt = p.username
+		shellTemplate = false
 	}
 
 	var background uint8
@@ -23,9 +27,10 @@ func segmentUser(p *powerline) []pwl.Segment {
 	}
 
 	return []pwl.Segment{{
-		Name:       "user",
-		Content:    userPrompt,
-		Foreground: p.theme.UsernameFg,
-		Background: background,
+		Name:          "user",
+		Content:       userPrompt,
+		Foreground:    p.theme.UsernameFg,
+		Background:    background,
+		ShellTemplate: shellTemplate,
 	}}
 }
