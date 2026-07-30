@@ -83,6 +83,24 @@ func Test_homeRelativePath(t *testing.T) {
 		p := homePowerline("/home/passwd")
 		assert(t, cwdToPathSegments(p, "/etc/nginx"), "etc", "nginx")
 	})
+
+	t.Run("sibling sharing a name prefix is not home", func(t *testing.T) {
+		t.Setenv("HOME", "/home/env")
+		p := homePowerline("/home/env")
+		assert(t, cwdToPathSegments(p, "/home/envtwo/proj"), "home", "envtwo", "proj")
+	})
+
+	// Containers without a home directory set HOME=/. Treating that as home would
+	// render every absolute path as "~/...", and filepath.Rel cleans its
+	// arguments, so the root-like spellings have to be rejected too. "." is the
+	// relative-path equivalent: every path is relative to it.
+	for _, home := range []string{"/", "//", "/./", "."} {
+		t.Run("a home of "+home+" does not swallow every path", func(t *testing.T) {
+			t.Setenv("HOME", home)
+			p := homePowerline(home)
+			assert(t, cwdToPathSegments(p, "/etc/nginx"), "etc", "nginx")
+		})
+	}
 }
 
 // Covers #253: -path-aliases-case-insensitive matches regardless of case.

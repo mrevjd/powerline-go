@@ -4,15 +4,16 @@ import "strings"
 
 // parsePathAliases parses the -path-aliases value: comma-separated key=value
 // pairs. A comma inside a path can be escaped as "\," so aliases can target
-// paths that contain commas. Pairs without an "=" are ignored. See #217.
+// paths that contain commas. Pairs without an "=" are ignored, as is an empty
+// path, which would otherwise alias empty path segments. See #217.
 func parsePathAliases(s string) map[string]string {
 	aliases := map[string]string{}
 	for _, pair := range splitEscaped(s, ',') {
-		kv := strings.SplitN(pair, "=", 2)
-		if len(kv) != 2 {
+		path, alias, found := strings.Cut(pair, "=")
+		if !found || path == "" {
 			continue
 		}
-		aliases[kv[0]] = kv[1]
+		aliases[path] = alias
 	}
 	return aliases
 }

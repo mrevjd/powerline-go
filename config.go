@@ -60,7 +60,10 @@ type Config struct {
 
 	PathAliasesCaseInsensitive bool `json:"path-aliases-case-insensitive"`
 	MinShlvl                   int  `json:"shlvl-min"`
-	Bold                       bool `json:"bold"`
+	// Bold overrides the active theme's own BoldForeground. A pointer keeps
+	// "unset" distinct from "explicitly false", which is what lets -bold=false
+	// (or "bold": false) turn bold off for a theme that enables it.
+	Bold *bool `json:"bold"`
 }
 
 func (mode *SymbolTemplate) UnmarshalJSON(data []byte) error {

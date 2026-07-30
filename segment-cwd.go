@@ -20,18 +20,6 @@ type pathSegment struct {
 	alias    bool
 }
 
-type byRevLength []string
-
-func (s byRevLength) Len() int {
-	return len(s)
-}
-func (s byRevLength) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byRevLength) Less(i, j int) bool {
-	return len(s[i]) > len(s[j])
-}
-
 // segEqual compares two path segments, honouring the case-insensitive option.
 func segEqual(a, b string, caseInsensitive bool) bool {
 	if caseInsensitive {
@@ -40,28 +28,30 @@ func segEqual(a, b string, caseInsensitive bool) bool {
 	return a == b
 }
 
-// segHasPrefix reports whether s starts with prefix, honouring the
-// case-insensitive option. It compares exactly len(prefix) bytes, so the caller
-// can safely slice s[len(prefix):] for the remainder regardless of casing.
-func segHasPrefix(s, prefix string, caseInsensitive bool) bool {
-	if !caseInsensitive {
-		return strings.HasPrefix(s, prefix)
-	}
-	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
-}
-
 func maybeAliasPathSegments(p *powerline, pathSegments []pathSegment) []pathSegment {
 	pathSeparator := string(os.PathSeparator)
 
-	if p.cfg.PathAliases == nil || len(p.cfg.PathAliases) == 0 {
+	if len(p.cfg.PathAliases) == 0 {
 		return pathSegments
 	}
 
-	keys := make([]string, len(p.cfg.PathAliases))
+	// Capacity, not length: appending to a len(n) slice would leave n empty keys
+	// in front, which then match empty path segments and alias them to "".
+	keys := make([]string, 0, len(p.cfg.PathAliases))
 	for k := range p.cfg.PathAliases {
 		keys = append(keys, k)
 	}
-	sort.Sort(byRevLength(keys))
+	// Longest key first, so the most specific alias wins, then lexicographically
+	// so the order is total. Sorting on length alone left keys of equal length in
+	// Go's randomised map iteration order, and sort.Sort is not stable, so two
+	// aliases of the same length competing for the same path rendered a different
+	// prompt from one invocation to the next.
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
 
 Aliases:
 	for _, k := range keys {
@@ -88,8 +78,12 @@ Aliases:
 			max := (i + size) - 1
 
 			// But if the upper index is out of bounds we can short-circuit
-			// and move on to the next alias.
-			if max > (len(pathSegments)-i)-1 {
+			// and move on to the next alias. The bound is the last valid index:
+			// comparing against len(pathSegments)-i-1 instead made the limit
+			// shrink as i advanced, so a run was only ever found in the first
+			// half of the path and an alias covering the final segment never
+			// matched unless it started at index 0.
+			if max > len(pathSegments)-1 {
 				continue Aliases
 			}
 
@@ -131,10 +125,23 @@ func homeDirs(p *powerline) []string {
 	seen := map[string]bool{}
 	homes := make([]string, 0, 4)
 	add := func(h string) {
-		if h != "" && !seen[h] {
-			seen[h] = true
-			homes = append(homes, h)
+		if h == "" {
+			return
 		}
+		// Clean before comparing: filepath.Rel cleans its arguments, so "//" and
+		// "/./" are the root as far as it is concerned, and a trailing separator
+		// would otherwise defeat the dedup.
+		h = filepath.Clean(h)
+		// A home that is its own parent is a root, and every path is relative to a
+		// root, so filepath.Rel would report the whole filesystem as home. That
+		// covers "/" (containers with no home directory set HOME=/), "." (the
+		// relative-path equivalent) and a bare Windows drive root. The old prefix
+		// comparison never matched any of them, so keep those paths absolute.
+		if h == filepath.Dir(h) || seen[h] {
+			return
+		}
+		seen[h] = true
+		homes = append(homes, h)
 	}
 	for _, h := range []string{os.Getenv("HOME"), p.userInfo.HomeDir} {
 		if h == "" {
@@ -150,49 +157,59 @@ func homeDirs(p *powerline) []string {
 
 // homeRelativePath reports whether cwd lies within one of the home directories
 // and, if so, returns the path relative to that home ("" when cwd is exactly
-// home). The remainder keeps its leading separator, matching the previous
-// cwd[len(home):] behaviour.
+// home). The result has no leading separator.
 func homeRelativePath(p *powerline, cwd string) (string, bool) {
-	sep := string(os.PathSeparator)
+	parentDir := ".." + string(os.PathSeparator)
 	for _, home := range homeDirs(p) {
-		if cwd == home {
+		// filepath.Rel also rejects a relative cwd against an absolute home (and
+		// vice versa) via its error, which a prefix comparison would miss.
+		rel, err := filepath.Rel(home, cwd)
+		if err != nil {
+			continue
+		}
+		if rel == "." {
 			return "", true
 		}
-		if strings.HasPrefix(cwd, home+sep) {
-			return cwd[len(home):], true
+		// Rel happily walks upwards, so ".." means cwd is outside this home.
+		if rel == ".." || strings.HasPrefix(rel, parentDir) {
+			continue
 		}
+		return rel, true
 	}
 	return "", false
 }
 
-// aliasedPlainPath applies -path-aliases to a plain (single-string) cwd, using
-// the same key set as the segmented modes so plain mode is no longer the odd
-// one out. Keys are matched as path prefixes; use "~" for home, matching the
-// segmented behaviour and the documented usage. See #406.
-func aliasedPlainPath(p *powerline, cwd string) string {
-	if len(p.cfg.PathAliases) == 0 {
-		return cwd
+// plainPath renders path segments back into the single string -cwd-mode plain
+// emits. cwdToPathSegments strips the leading separators of an absolute path (the
+// segmented modes imply them), so they are restored here unless the first segment
+// already stands in for the root: "~" and an alias both replace it, and the root
+// segment is the separator itself.
+func plainPath(cwd string, pathSegments []pathSegment) string {
+	pathSeparator := string(os.PathSeparator)
+
+	names := make([]string, 0, len(pathSegments))
+	for _, segment := range pathSegments {
+		names = append(names, segment.path)
 	}
-	sep := string(os.PathSeparator)
-	keys := make([]string, 0, len(p.cfg.PathAliases))
-	for k := range p.cfg.PathAliases {
-		keys = append(keys, k)
+	joined := strings.Join(names, pathSeparator)
+
+	if len(pathSegments) == 0 {
+		return joined
 	}
-	// Longest key first, so the most specific alias wins.
-	sort.Sort(byRevLength(keys))
-	for _, k := range keys {
-		key := strings.TrimRight(k, sep)
-		if key == "" {
-			continue
-		}
-		if segEqual(cwd, key, p.cfg.PathAliasesCaseInsensitive) {
-			return p.cfg.PathAliases[k]
-		}
-		if segHasPrefix(cwd, key+sep, p.cfg.PathAliasesCaseInsensitive) {
-			return p.cfg.PathAliases[k] + cwd[len(key):]
-		}
+	first := pathSegments[0]
+	if first.root || first.home || first.alias {
+		return joined
 	}
-	return cwd
+	// Restore the whole leading separator run rather than a single separator, so
+	// a Windows UNC path keeps its "\\" prefix. Taking it from the normalised
+	// path keeps POSIX behaviour intact: path.Clean collapses "//" to "/" but
+	// leaves backslashes alone, since it only understands "/".
+	//
+	// A Windows drive root renders as "C:" rather than "C:\", because the trailing
+	// separator is not part of any segment. That matches what the segmented modes
+	// have always shown there, so plain mode is no longer the odd one out.
+	cleaned := path.Clean(cwd)
+	return cleaned[:len(cleaned)-len(strings.TrimLeft(cleaned, pathSeparator))] + joined
 }
 
 func cwdToPathSegments(p *powerline, cwd string) []pathSegment {
@@ -261,14 +278,12 @@ func segmentCwd(p *powerline) (segments []pwl.Segment) {
 
 	switch p.cfg.CwdMode {
 	case "plain":
-		if rel, ok := homeRelativePath(p, cwd); ok {
-			cwd = "~" + rel
-		}
-		cwd = aliasedPlainPath(p, cwd)
-
+		// Plain mode goes through the same segmentation and aliasing as the other
+		// modes and is rejoined afterwards, so "~" abbreviation, path
+		// normalisation and -path-aliases cannot drift between modes. See #406.
 		segments = append(segments, pwl.Segment{
 			Name:       "cwd",
-			Content:    escapeVariables(p, cwd),
+			Content:    escapeVariables(p, plainPath(cwd, cwdToPathSegments(p, cwd))),
 			Foreground: p.theme.CwdFg,
 			Background: p.theme.PathBg,
 		})
