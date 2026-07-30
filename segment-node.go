@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -24,30 +23,25 @@ func getNodeVersion() string {
 	return strings.TrimSuffix(string(out), "\n")
 }
 
-func hasPackageJSON() bool {
+// readPackageJSON returns the version declared in ./package.json, and whether the
+// file exists at all. Both answers come from one stat: the caller needs the
+// existence check to decide whether this is a node project (#356) and the version
+// to render, and this runs on every prompt.
+func readPackageJSON() (string, bool) {
 	stat, err := os.Stat(pkgfile)
-	return err == nil && !stat.IsDir()
-}
-
-func getPackageVersion() string {
-	stat, err := os.Stat(pkgfile)
-	if err != nil {
-		return ""
+	if err != nil || stat.IsDir() {
+		return "", false
 	}
-	if stat.IsDir() {
-		return ""
-	}
-	pkg := packageJSON{""}
-	raw, err := ioutil.ReadFile(pkgfile)
+	raw, err := os.ReadFile(pkgfile)
 	if err != nil {
-		return ""
+		return "", true
 	}
-	err = json.Unmarshal(raw, &pkg)
-	if err != nil {
-		return ""
+	pkg := packageJSON{}
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		return "", true
 	}
 
-	return strings.TrimSpace(pkg.Version)
+	return strings.TrimSpace(pkg.Version), true
 }
 
 func segmentNode(p *powerline) []pwl.Segment {
@@ -56,12 +50,12 @@ func segmentNode(p *powerline) []pwl.Segment {
 	// Only surface node info inside a node project (package.json present).
 	// Otherwise the segment showed on every prompt merely because `node` was
 	// on PATH. See #356.
-	if !hasPackageJSON() {
+	packageVersion, inNodeProject := readPackageJSON()
+	if !inNodeProject {
 		return segments
 	}
 
 	nodeVersion := getNodeVersion()
-	packageVersion := getPackageVersion()
 
 	if nodeVersion != "" {
 		segments = append(segments, pwl.Segment{

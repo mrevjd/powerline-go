@@ -22,9 +22,30 @@ func Test_segmentNode(t *testing.T) {
 
 	p := &powerline{symbols: SymbolTemplate{NodeIndicator: "N"}}
 
+	// Assert the project detection directly as well as the rendered segments: an
+	// environment without node installed produces no segments either way, so the
+	// segment count alone would pass even if detection regressed.
 	t.Run("no package.json yields no segments", func(t *testing.T) {
+		if _, inNodeProject := readPackageJSON(); inNodeProject {
+			t.Error("expected no node project without a package.json")
+		}
 		if segs := segmentNode(p); len(segs) != 0 {
 			t.Fatalf("expected no segments outside a node project, got %d: %v", len(segs), segs)
+		}
+	})
+
+	t.Run("a package.json directory is not a node project", func(t *testing.T) {
+		pkg := filepath.Join(dir, "package.json")
+		if err := os.Mkdir(pkg, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(pkg)
+
+		if _, inNodeProject := readPackageJSON(); inNodeProject {
+			t.Error("expected a package.json directory not to count as a node project")
+		}
+		if segs := segmentNode(p); len(segs) != 0 {
+			t.Fatalf("expected no segments when package.json is a directory, got %d: %v", len(segs), segs)
 		}
 	})
 
