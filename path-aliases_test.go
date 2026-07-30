@@ -17,6 +17,8 @@ func Test_parsePathAliases(t *testing.T) {
 		{"escaped comma in key", `/mnt/c/OneDrive - Co\, Inc/src=@one`, map[string]string{"/mnt/c/OneDrive - Co, Inc/src": "@one"}},
 		{"escaped comma in value", `~/x=a\,b`, map[string]string{"~/x": "a,b"}},
 		{"pair without equals is skipped", "~/x=@a,junk,~/y=@b", map[string]string{"~/x": "@a", "~/y": "@b"}},
+		{"empty path is skipped", "=@nothing,~/y=@b", map[string]string{"~/y": "@b"}},
+		{"empty alias is kept", "~/x=", map[string]string{"~/x": ""}},
 		{"empty input", "", map[string]string{}},
 	}
 	for _, tt := range tests {
