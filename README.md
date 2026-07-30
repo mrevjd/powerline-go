@@ -283,11 +283,9 @@ Usage of powerline-go:
   -alternate-ssh-icon
          Show the older, original icon for SSH connections
   -bold
-         Use bold text for segment foregrounds
+         Use bold text for segment foregrounds, overriding the theme's own setting. Pass -bold=false to force non-bold.
   -colorize-hostname
-         Colorize the hostname based on a hash of itself, or use the PLGO_HOSTNAMEFG and PLGO_HOSTNAMEBG env vars (both need to be set).
-  -fqdn-hostname
-         Use the longer fully qualified domain name as the hostname
+         Colorize the hostname based on a hash of itself. Override either colour independently with the PLGO_HOSTNAMEFG and/or PLGO_HOSTNAMEBG env vars (color codes 0-255).
   -condensed
          Remove spacing between segments
   -cwd-max-depth int
@@ -302,6 +300,8 @@ Usage of powerline-go:
          (default "fancy")
   -duration string
          The elapsed clock-time of the previous command
+  -duration-low-precision
+         Use low precision timing for duration with milliseconds as maximum resolution
   -duration-min string
          The minimal time a command has to take before the duration segment is shown (default "0")
   -east-asian-width
@@ -310,6 +310,8 @@ Usage of powerline-go:
          Exit code of previously executed command
   -eval
          Output prompt in 'eval' format.
+  -fqdn-hostname
+         Use the longer fully qualified domain name as the hostname
   -git-assume-unchanged-size int
          Disable checking for changed/edited files in git repositories where the index is larger than this size (in KB), improves performance (default 2048)
   -git-disable-stats string
@@ -352,6 +354,8 @@ Usage of powerline-go:
          An alias maps a path like foo/bar/baz to a short name like FBB.
          Specify these as key/value pairs like foo/bar/baz=FBB.
          Use '~' for your home dir. You may need to escape this character to avoid shell substitution.
+  -path-aliases-case-insensitive
+         Match -path-aliases case-insensitively (useful on case-insensitive filesystems)
   -priority string
          Segments sorted by priority, if not enough space exists, the least priorized segments are removed first. Separate with ','
          (valid choices: aws, bzr, cwd, direnv, docker, docker-context, dotenv, duration, exit, fossil, gcp, git, gitlite, goenv, hg, host, jobs, kube, load, newline, nix-shell, node, perlbrew, perms, plenv, rbenv, root, rvm, shell-var, shenv, shlvl, ssh, svn, termtitle, terraform-workspace, time, user, venv, vgo, vi-mode, wsl, azure)
@@ -363,20 +367,25 @@ Usage of powerline-go:
   -shell-var string
          A shell variable to add to the segments.
   -shell-var-no-warn-empty
-         Disables warning for empty shell variable.
+         Disables the warning shown when the shell variable is unset or empty.
   -shlvl-min int
-         Minimum $SHLVL before the shlvl module shows the shell nesting depth
-         (default 2)
+         Minimum $SHLVL before the shlvl module shows the shell nesting depth (default 2)
   -shorten-eks-names
          Shortens names for EKS Kube clusters.
   -shorten-gke-names
          Shortens names for GKE Kube clusters.
+  -shorten-openshift-names
+         Shortens names for Openshift Kube clusters.
   -static-prompt-indicator
          Always show the prompt indicator with the default color, never with the error color
   -theme string
          Set this to the theme you want to use
          (valid choices: default, low-contrast, gruvbox, solarized-dark16, solarized-light16)
          (default "default")
+  -time string
+         The layout string how a reference time should be represented.
+         The reference time is predefined and not user chosen.
+         Consult the golang documentation for details: https://pkg.go.dev/time#example-Time.Format (default "15:04:05")
   -trim-ad-domain
          Trim the Domainname from the AD username.
   -truncate-segment-width int
@@ -384,6 +393,8 @@ Usage of powerline-go:
          (default 16)
   -venv-name-size-limit int
          Show indicator instead of virtualenv name if name is longer than this limit (defaults to 0, which is unlimited)
+  -version
+         Print the current version and exit
   -vi-mode string
          The current vi-mode (eg. KEYMAP for zsh) for vi-module module
 ```
@@ -462,6 +473,10 @@ in keys need no escaping.
 
 Pass `-path-aliases-case-insensitive` to match alias paths regardless of case,
 which is useful on case-insensitive filesystems such as macOS or Windows.
+
+Aliases match whole path components, and they match in every `-cwd-mode`
+including `plain`: an alias for `foo/bar` replaces that pair of components
+wherever they appear in the path, not only at its start.
 
 ### Duration
 
