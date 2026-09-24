@@ -141,11 +141,10 @@ func startBackgroundFetch(interval time.Duration) {
 	// --no-write-fetch-head leaves FETCH_HEAD to the user's own fetches.
 	cmd := exec.Command("git", "-c", "credential.interactive=false", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head")
 	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
-	// helpers are reachable. Nothing may prompt: terminal prompts and askpass
-	// helpers are disabled (an IDE terminal's GIT_ASKPASS would otherwise pop a
-	// dialog; empty also overrides core.askPass and SSH_ASKPASS), so a fetch
-	// needing credentials you have not already provided just fails.
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
+	// helpers are reachable. Nothing may prompt: with no terminal and every
+	// askpass blanked (an IDE terminal exports GIT_ASKPASS), a fetch needing
+	// credentials you have not already provided just fails.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "SSH_ASKPASS=", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
 	detachProcess(cmd)
 	if cmd.Start() == nil {
 		_ = cmd.Process.Release()
