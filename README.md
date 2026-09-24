@@ -61,7 +61,8 @@ login, so it only succeeds for remotes you are already authenticated to (SSH
 agent, credential helper, `gh auth setup-git`) and otherwise fails silently.
 It will not show a login prompt, and a fetch still running after the interval
 or 10 minutes, whichever is longer, is killed along with any ssh it started, so
-stalled fetches don't linger. On Windows only the git process itself is killed.
+stalled fetches don't linger. On Windows only the process git was started as is
+killed; with Git for Windows that is a launcher, so a stalled fetch may keep running.
 It needs git 2.29 or later.
 
 ## Installation

@@ -161,9 +161,8 @@ func startBackgroundFetch(interval, timeout time.Duration) {
 // runBackgroundFetch instead of drawing a prompt.
 const backgroundFetchArg = "__powerline-go-background-fetch"
 
-// runBackgroundFetch fetches, killing the fetch if it outlives timeout. The
-// timeout bounds a fetch stalled on a dead network. It is at least 10 minutes
-// so a slow but working fetch still lands at short intervals.
+// runBackgroundFetch fetches, killing the fetch if it outlives timeout, which
+// bounds a fetch stalled on a dead network.
 func runBackgroundFetch(timeout string) {
 	d, err := time.ParseDuration(timeout)
 	if err != nil {
@@ -270,6 +269,8 @@ func segmentGit(p *powerline) []pwl.Segment {
 
 	if p.cfg.GitFetchInterval > 0 && branchInfo["remote"] != "" {
 		interval := time.Duration(p.cfg.GitFetchInterval) * time.Minute
+		// At least 10 minutes, so a slow but working fetch still lands when
+		// the interval is short.
 		startBackgroundFetch(interval, max(interval, 10*time.Minute))
 	}
 
