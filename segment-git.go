@@ -122,7 +122,7 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 // counted against, without making the prompt wait on the network: the fetch is
 // detached and outlives this process, so its result shows on a later prompt.
 func startBackgroundFetch(interval time.Duration) {
-	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--path-format=absolute", "--git-common-dir")
+	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--git-common-dir")
 	if err != nil {
 		return
 	}
@@ -138,12 +138,14 @@ func startBackgroundFetch(interval time.Duration) {
 	now := time.Now()
 	_ = os.Chtimes(stamp, now, now)
 
-	cmd := exec.Command("git", "fetch", "--quiet", "--no-tags")
+	// --no-write-fetch-head leaves FETCH_HEAD to the user's own fetches.
+	cmd := exec.Command("git", "-c", "credential.interactive=false", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head")
 	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
-	// helpers are reachable. Nothing may prompt: detached from the terminal and
-	// with these set, a fetch needing credentials you have not already provided
-	// just fails.
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
+	// helpers are reachable. Nothing may prompt: terminal prompts and askpass
+	// helpers are disabled (an IDE terminal's GIT_ASKPASS would otherwise pop a
+	// dialog; empty also overrides core.askPass and SSH_ASKPASS), so a fetch
+	// needing credentials you have not already provided just fails.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
 	detachProcess(cmd)
 	if cmd.Start() == nil {
 		_ = cmd.Process.Release()
