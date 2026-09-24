@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -138,8 +139,13 @@ func startBackgroundFetch(interval time.Duration) {
 	now := time.Now()
 	_ = os.Chtimes(stamp, now, now)
 
-	// --no-write-fetch-head leaves FETCH_HEAD to the user's own fetches.
-	cmd := exec.Command("git", "-c", "credential.interactive=false", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head")
+	// The fetch is supervised by a detached copy of powerline-go, since nothing
+	// else survives this process to enforce a deadline on it.
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(self, backgroundFetchArg, interval.String())
 	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
 	// helpers are reachable. Nothing may prompt: with no terminal and every
 	// askpass blanked (an IDE terminal exports GIT_ASKPASS), a fetch needing
@@ -149,6 +155,26 @@ func startBackgroundFetch(interval time.Duration) {
 	if cmd.Start() == nil {
 		_ = cmd.Process.Release()
 	}
+}
+
+// backgroundFetchArg, as the first argument, makes powerline-go run
+// runBackgroundFetch instead of drawing a prompt.
+const backgroundFetchArg = "__powerline-go-background-fetch"
+
+// runBackgroundFetch fetches, killing the fetch if it outlives timeout. The
+// timeout is the fetch interval, so a fetch stalled on a dead network is gone
+// before the next one can start rather than piling up.
+func runBackgroundFetch(timeout string) {
+	d, err := time.ParseDuration(timeout)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+	// --no-write-fetch-head leaves FETCH_HEAD to the user's own fetches.
+	cmd := exec.CommandContext(ctx, "git", "-c", "credential.interactive=false", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head")
+	cmd.Cancel = func() error { return killFetch(cmd) }
+	_ = cmd.Run()
 }
 
 func parseGitBranchInfo(status []string) map[string]string {

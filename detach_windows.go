@@ -15,3 +15,8 @@ func detachProcess(cmd *exec.Cmd) {
 		HideWindow:    true,
 	}
 }
+
+// killFetch ends git. An ssh.exe it started loses its pipes and exits after.
+func killFetch(cmd *exec.Cmd) error {
+	return cmd.Process.Kill()
+}

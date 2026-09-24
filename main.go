@@ -124,6 +124,11 @@ func commentsWithDefaults(lines ...string) string {
 }
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == backgroundFetchArg {
+		runBackgroundFetch(os.Args[2])
+		return
+	}
+
 	flag.Parse()
 
 	if *args.Version {

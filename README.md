@@ -59,7 +59,9 @@ appears on the next prompt after the fetch lands. The fetch is detached from
 the terminal and cannot prompt for a password, passphrase or credential-manager
 login, so it only succeeds for remotes you are already authenticated to (SSH
 agent, credential helper, `gh auth setup-git`) and otherwise fails silently.
-It will not show a login prompt and does not hang. It needs git 2.29 or later.
+It will not show a login prompt, and a fetch still running when the interval
+is up (a stalled network, say) is killed along with any ssh it started, so
+stuck fetches never pile up. It needs git 2.29 or later.
 
 ## Installation
 
