@@ -170,6 +170,8 @@ func main() {
 			cfg.GitDisableStats = strings.Split(*args.GitDisableStats, ",")
 		case "git-mode":
 			cfg.GitMode = *args.GitMode
+		case "git-fetch-interval":
+			cfg.GitFetchInterval = *args.GitFetchInterval
 		case "mode":
 			cfg.Mode = *args.Mode
 		case "theme":

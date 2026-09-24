@@ -5,9 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	pwl "github.com/justjanne/powerline-go/powerline"
 )
@@ -116,6 +118,38 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// startBackgroundFetch refreshes the remote-tracking ref that ahead/behind is
+// counted against, without making the prompt wait on the network: the fetch is
+// detached and outlives this process, so its result shows on a later prompt.
+func startBackgroundFetch(interval time.Duration) {
+	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return
+	}
+	// Stamped before fetching, not on success, so a remote you are not
+	// authenticated to is retried once per interval rather than every prompt.
+	stamp := filepath.Join(strings.TrimSpace(out), "powerline-go-fetch")
+	if info, err := os.Stat(stamp); err == nil && time.Since(info.ModTime()) < interval {
+		return
+	}
+	if err := os.WriteFile(stamp, nil, 0o644); err != nil {
+		return
+	}
+	now := time.Now()
+	_ = os.Chtimes(stamp, now, now)
+
+	cmd := exec.Command("git", "fetch", "--quiet", "--no-tags")
+	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
+	// helpers are reachable. Nothing may prompt: detached from the terminal and
+	// with these set, a fetch needing credentials you have not already provided
+	// just fails.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
+	detachProcess(cmd)
+	if cmd.Start() == nil {
+		_ = cmd.Process.Release()
+	}
+}
+
 func parseGitBranchInfo(status []string) map[string]string {
 	return groupDict(branchRegex, status[0])
 }
@@ -206,6 +240,10 @@ func segmentGit(p *powerline) []pwl.Segment {
 	stats := parseGitStats(status)
 	branchInfo := parseGitBranchInfo(status)
 	var branch string
+
+	if p.cfg.GitFetchInterval > 0 && branchInfo["remote"] != "" {
+		startBackgroundFetch(time.Duration(p.cfg.GitFetchInterval) * time.Minute)
+	}
 
 	if branchInfo["local"] != "" {
 		ahead, _ := strconv.ParseInt(branchInfo["ahead"], 10, 32)
