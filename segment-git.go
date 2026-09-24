@@ -122,7 +122,7 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 // startBackgroundFetch refreshes the remote-tracking ref that ahead/behind is
 // counted against, without making the prompt wait on the network: the fetch is
 // detached and outlives this process, so its result shows on a later prompt.
-func startBackgroundFetch(interval time.Duration) {
+func startBackgroundFetch(interval, timeout time.Duration) {
 	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--git-common-dir")
 	if err != nil {
 		return
@@ -145,7 +145,7 @@ func startBackgroundFetch(interval time.Duration) {
 	if err != nil {
 		return
 	}
-	cmd := exec.Command(self, backgroundFetchArg, interval.String())
+	cmd := exec.Command(self, backgroundFetchArg, timeout.String())
 	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
 	// helpers are reachable. Nothing may prompt: with no terminal and every
 	// askpass blanked (an IDE terminal exports GIT_ASKPASS), a fetch needing
@@ -162,8 +162,8 @@ func startBackgroundFetch(interval time.Duration) {
 const backgroundFetchArg = "__powerline-go-background-fetch"
 
 // runBackgroundFetch fetches, killing the fetch if it outlives timeout. The
-// timeout is the fetch interval, so a fetch stalled on a dead network is gone
-// before the next one can start rather than piling up.
+// timeout bounds a fetch stalled on a dead network. It is at least 10 minutes
+// so a slow but working fetch still lands at short intervals.
 func runBackgroundFetch(timeout string) {
 	d, err := time.ParseDuration(timeout)
 	if err != nil {
@@ -269,7 +269,8 @@ func segmentGit(p *powerline) []pwl.Segment {
 	var branch string
 
 	if p.cfg.GitFetchInterval > 0 && branchInfo["remote"] != "" {
-		startBackgroundFetch(time.Duration(p.cfg.GitFetchInterval) * time.Minute)
+		interval := time.Duration(p.cfg.GitFetchInterval) * time.Minute
+		startBackgroundFetch(interval, max(interval, 10*time.Minute))
 	}
 
 	if branchInfo["local"] != "" {

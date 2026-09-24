@@ -69,7 +69,7 @@ func TestStartBackgroundFetch(t *testing.T) {
 	}
 	stamp := filepath.Join(strings.TrimSpace(commonDirOut), "powerline-go-fetch")
 
-	startBackgroundFetch(time.Minute)
+	startBackgroundFetch(time.Minute, time.Minute)
 	if _, err := os.Stat(stamp); err != nil {
 		t.Fatalf("expected stamp file to exist: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestStartBackgroundFetch(t *testing.T) {
 	run(other, "commit", "-m", "three")
 	run(other, "push", "origin", "main")
 
-	startBackgroundFetch(time.Minute)
+	startBackgroundFetch(time.Minute, time.Minute)
 	time.Sleep(time.Second)
 
 	got, _ := runGitCommand("git", "rev-parse", "origin/main")
@@ -154,7 +154,7 @@ func TestBackgroundFetchTimeoutKillsProcessGroup(t *testing.T) {
 		return pid, err == nil
 	}
 
-	startBackgroundFetch(2 * time.Second)
+	startBackgroundFetch(2*time.Second, 2*time.Second)
 
 	var gitPID, childPID int
 	deadline := time.Now().Add(5 * time.Second)

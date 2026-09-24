@@ -16,7 +16,9 @@ func detachProcess(cmd *exec.Cmd) {
 	}
 }
 
-// killFetch ends git. An ssh.exe it started loses its pipes and exits after.
+// killFetch kills the process git was started as. With Git for Windows that is
+// a launcher, so the real git and any ssh it started may outlive a timed-out
+// fetch.
 func killFetch(cmd *exec.Cmd) error {
 	return cmd.Process.Kill()
 }
