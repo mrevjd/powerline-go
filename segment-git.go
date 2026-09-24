@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	pwl "github.com/justjanne/powerline-go/powerline"
 )
@@ -116,6 +119,63 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// startBackgroundFetch refreshes the remote-tracking ref that ahead/behind is
+// counted against, without making the prompt wait on the network: the fetch is
+// detached and outlives this process, so its result shows on a later prompt.
+func startBackgroundFetch(interval, timeout time.Duration) {
+	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--git-common-dir")
+	if err != nil {
+		return
+	}
+	// Stamped before fetching, not on success, so a remote you are not
+	// authenticated to is retried once per interval rather than every prompt.
+	stamp := filepath.Join(strings.TrimSpace(out), "powerline-go-fetch")
+	if info, err := os.Stat(stamp); err == nil && time.Since(info.ModTime()) < interval {
+		return
+	}
+	if err := os.WriteFile(stamp, nil, 0o644); err != nil {
+		return
+	}
+	now := time.Now()
+	_ = os.Chtimes(stamp, now, now)
+
+	// The fetch is supervised by a detached copy of powerline-go, since nothing
+	// else survives this process to enforce a deadline on it.
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(self, backgroundFetchArg, timeout.String())
+	// Full environment, unlike gitProcessEnv, so the SSH agent and credential
+	// helpers are reachable. Nothing may prompt: with no terminal and every
+	// askpass blanked (an IDE terminal exports GIT_ASKPASS), a fetch needing
+	// credentials you have not already provided just fails.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=", "SSH_ASKPASS=", "GCM_INTERACTIVE=never", "SSH_ASKPASS_REQUIRE=never")
+	detachProcess(cmd)
+	if cmd.Start() == nil {
+		_ = cmd.Process.Release()
+	}
+}
+
+// backgroundFetchArg, as the first argument, makes powerline-go run
+// runBackgroundFetch instead of drawing a prompt.
+const backgroundFetchArg = "__powerline-go-background-fetch"
+
+// runBackgroundFetch fetches, killing the fetch if it outlives timeout, which
+// bounds a fetch stalled on a dead network.
+func runBackgroundFetch(timeout string) {
+	d, err := time.ParseDuration(timeout)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+	// --no-write-fetch-head leaves FETCH_HEAD to the user's own fetches.
+	cmd := exec.CommandContext(ctx, "git", "-c", "credential.interactive=false", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head")
+	cmd.Cancel = func() error { return killFetch(cmd) }
+	_ = cmd.Run()
+}
+
 func parseGitBranchInfo(status []string) map[string]string {
 	return groupDict(branchRegex, status[0])
 }
@@ -206,6 +266,13 @@ func segmentGit(p *powerline) []pwl.Segment {
 	stats := parseGitStats(status)
 	branchInfo := parseGitBranchInfo(status)
 	var branch string
+
+	if p.cfg.GitFetchInterval > 0 && branchInfo["remote"] != "" {
+		interval := time.Duration(p.cfg.GitFetchInterval) * time.Minute
+		// At least 10 minutes, so a slow but working fetch still lands when
+		// the interval is short.
+		startBackgroundFetch(interval, max(interval, 10*time.Minute))
+	}
 
 	if branchInfo["local"] != "" {
 		ahead, _ := strconv.ParseInt(branchInfo["ahead"], 10, 32)

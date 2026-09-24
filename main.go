@@ -124,6 +124,11 @@ func commentsWithDefaults(lines ...string) string {
 }
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == backgroundFetchArg {
+		runBackgroundFetch(os.Args[2])
+		return
+	}
+
 	flag.Parse()
 
 	if *args.Version {
@@ -170,6 +175,8 @@ func main() {
 			cfg.GitDisableStats = strings.Split(*args.GitDisableStats, ",")
 		case "git-mode":
 			cfg.GitMode = *args.GitMode
+		case "git-fetch-interval":
+			cfg.GitFetchInterval = *args.GitFetchInterval
 		case "mode":
 			cfg.Mode = *args.Mode
 		case "theme":

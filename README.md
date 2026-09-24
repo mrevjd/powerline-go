@@ -51,6 +51,20 @@ In addition, git has a few extra symbols:
 
 Each of these will have a number next to it if more than one file matches.
 
+The ahead/behind counts compare against your last fetch, so they go stale
+until something runs `git fetch`. `-git-fetch-interval 5` has the git segment
+start a background fetch at most every 5 minutes per repository, only for a
+branch with an upstream. The prompt never waits for it: the updated count
+appears on the next prompt after the fetch lands. The fetch is detached from
+the terminal and cannot prompt for a password, passphrase or credential-manager
+login, so it only succeeds for remotes you are already authenticated to (SSH
+agent, credential helper, `gh auth setup-git`) and otherwise fails silently.
+It will not show a login prompt, and a fetch still running after the interval
+or 10 minutes, whichever is longer, is killed along with any ssh it started, so
+stalled fetches don't linger. On Windows only the process git was started as is
+killed; with Git for Windows that is a launcher, so a stalled fetch may keep running.
+It needs git 2.29 or later.
+
 ## Installation
 
 Builds with the Go 1.25 toolchain. Go 1.21 through 1.24 will download it
@@ -317,6 +331,9 @@ Usage of powerline-go:
   -git-disable-stats string
          Comma-separated list to disable individual git statuses
          (valid choices: ahead, behind, staged, notStaged, untracked, conflicted, stashed)
+  -git-fetch-interval int
+         Fetch the current branch's remote in the background at most once every N minutes, keeping ahead/behind current (defaults to 0, which is disabled).
+         The fetch never prompts for credentials, so it only succeeds where you are already authenticated
   -git-mode string
          How to display git status
          (valid choices: fancy, compact, simple)
