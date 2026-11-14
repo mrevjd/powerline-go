@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 // segmentShLvl shows the shell nesting depth from $SHLVL. It renders only when

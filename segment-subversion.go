@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 	"os/exec"
 	"strings"
 )

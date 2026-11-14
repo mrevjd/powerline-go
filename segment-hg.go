@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 func getHgStatus() (bool, bool, bool) {

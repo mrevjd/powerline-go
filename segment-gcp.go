@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 const gcloudCoreSectionHeader = "\n[core]\n"
