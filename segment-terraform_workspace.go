@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 
 	pwl "github.com/justjanne/powerline-go/powerline"
@@ -17,7 +16,7 @@ func segmentTerraformWorkspace(p *powerline) []pwl.Segment {
 	if stat.IsDir() {
 		return []pwl.Segment{}
 	}
-	workspace, err := ioutil.ReadFile(wsFile)
+	workspace, err := os.ReadFile(wsFile)
 	if err != nil {
 		return []pwl.Segment{}
 	}

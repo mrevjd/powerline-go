@@ -14,7 +14,7 @@ func segmentDocker(p *powerline) []pwl.Segment {
 
 	if dockerMachineName != "" {
 		docker = dockerMachineName
-	} else if dockerHost != " " {
+	} else if dockerHost != "" {
 		u, err := url.Parse(dockerHost)
 		if err == nil {
 			docker = u.Host

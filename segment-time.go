@@ -1,8 +1,8 @@
 package main
 
 import (
-	"strings"
 	pwl "github.com/justjanne/powerline-go/powerline"
+	"strings"
 	"time"
 )
 
