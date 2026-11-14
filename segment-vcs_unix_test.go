@@ -83,6 +83,21 @@ func TestVcsSegments(t *testing.T) {
 	})
 }
 
+// `svn status -u` always ends with a "Status against revision" line, which is
+// a footer, not a changed path, so it must not make a clean checkout dirty.
+func TestSvnCleanCheckoutIsClean(t *testing.T) {
+	fakeTool(t, "svn", map[string]string{
+		"info":   "Path: .\nURL: https://example.com/repo/trunk\nRelative URL: ^/trunk\n",
+		"status": "Status against revision:     42\n",
+	})
+	p := &powerline{theme: Theme{RepoCleanFg: 1, RepoCleanBg: 2, RepoDirtyFg: 3, RepoDirtyBg: 4}}
+	got := view(segmentSubversion)(p)
+	want := []segmentView{{"svn-branch", "^/trunk", 1, 2}}
+	if len(got) != 1 || got[0] != want[0] {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
 func TestReadFileUpwards(t *testing.T) {
 	root := t.TempDir()
 	deep := filepath.Join(root, "a", "b")

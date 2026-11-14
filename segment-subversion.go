@@ -30,7 +30,8 @@ func parseSvnStatus() (stats repoStats, other int) {
 		return stats, 0
 	}
 	for _, line := range strings.Split(out, "\n") {
-		if len(line) < 9 {
+		// -u appends a "Status against revision" footer, which is not an entry.
+		if len(line) < 9 || strings.HasPrefix(line, "Status against revision") {
 			continue
 		}
 		switch line[0] {
