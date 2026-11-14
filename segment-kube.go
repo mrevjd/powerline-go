@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 	"os"
 	"path"
 	"path/filepath"

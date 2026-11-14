@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 	"github.com/shirou/gopsutil/v3/load"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/ini.v1"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 func segmentVirtualEnv(p *powerline) []pwl.Segment {

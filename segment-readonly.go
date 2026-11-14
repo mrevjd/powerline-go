@@ -3,7 +3,7 @@
 package main
 
 import (
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 	"golang.org/x/sys/unix"
 )
 

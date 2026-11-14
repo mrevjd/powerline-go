@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 // fakeTool puts an executable named name on PATH that answers each first

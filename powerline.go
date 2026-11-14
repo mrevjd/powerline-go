@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
 	"github.com/mattn/go-runewidth"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/term"
 	"golang.org/x/text/width"
