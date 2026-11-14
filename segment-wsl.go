@@ -14,7 +14,7 @@ func segmentWSL(p *powerline) []pwl.Segment {
 
 	if WSLMachineName != "" {
 		WSL = WSLMachineName
-	} else if WSLHost != " " {
+	} else if WSLHost != "" {
 		u, err := url.Parse(WSLHost)
 		if err == nil {
 			WSL = u.Host

@@ -50,11 +50,6 @@ type powerline struct {
 	rightPowerline *powerline
 }
 
-type prioritizedSegments struct {
-	i    int
-	segs []pwl.Segment
-}
-
 func newPowerline(cfg Config, cwd string, align alignment) *powerline {
 	p := new(powerline)
 	p.cfg = cfg
@@ -141,52 +136,36 @@ func newPowerline(cfg Config, cwd string, align alignment) *powerline {
 }
 
 func detectShell(shellExe string) string {
-	var shell string
 	shellExe = path.Base(shellExe)
-	if strings.Contains(shellExe, "bash") {
-		shell = "bash"
-	} else if strings.Contains(shellExe, "zsh") {
-		shell = "zsh"
-	} else {
-		shell = "bare"
+	switch {
+	case strings.Contains(shellExe, "bash"):
+		return "bash"
+	case strings.Contains(shellExe, "zsh"):
+		return "zsh"
+	default:
+		return "bare"
 	}
-	return shell
 }
 
+// initSegments runs every module concurrently, then appends their segments in
+// the order the modules were listed. Each goroutine owns one slot of results.
 func initSegments(p *powerline, mods []string) {
-	orderedSegments := map[int][]pwl.Segment{}
-	c := make(chan prioritizedSegments, len(mods))
-	wg := sync.WaitGroup{}
+	results := make([][]pwl.Segment, len(mods))
+	var wg sync.WaitGroup
 	for i, module := range mods {
-		wg.Add(1)
-		go func(w *sync.WaitGroup, i int, module string, c chan prioritizedSegments) {
-			elem, ok := modules[module]
-			if ok {
-				c <- prioritizedSegments{
-					i:    i,
-					segs: elem(p),
-				}
+		wg.Go(func() {
+			if segment, ok := modules[module]; ok {
+				results[i] = segment(p)
+			} else if segs, ok := segmentPlugin(p, module); ok {
+				results[i] = segs
 			} else {
-				s, ok := segmentPlugin(p, module)
-				if ok {
-					c <- prioritizedSegments{
-						i:    i,
-						segs: s,
-					}
-				} else {
-					println("Module not found: " + module)
-				}
+				println("Module not found: " + module)
 			}
-			wg.Done()
-		}(&wg, i, module, c)
+		})
 	}
 	wg.Wait()
-	close(c)
-	for s := range c {
-		orderedSegments[s.i] = s.segs
-	}
-	for i := 0; i < len(mods); i++ {
-		for _, seg := range orderedSegments[i] {
+	for _, segs := range results {
+		for _, seg := range segs {
 			p.appendSegment(seg.Name, seg)
 		}
 	}
@@ -202,9 +181,8 @@ func (p *powerline) color(prefix string, code uint8) string {
 func (p *powerline) fgColor(code uint8) string {
 	if p.theme.BoldForeground {
 		return p.color("1;38", code)
-	} else {
-		return p.color("38", code)
 	}
+	return p.color("38", code)
 }
 
 func (p *powerline) bgColor(code uint8) string {
@@ -264,63 +242,60 @@ func termWidth() int {
 	return termWidth
 }
 
+// lowestPriority returns the index of the lowest-priority segment in row that
+// eligible accepts, or -1 if there is none. A segment at MaxInteger priority is
+// never chosen: that is how a segment such as termtitle asks not to be touched.
+func lowestPriority(row []pwl.Segment, eligible func(int, pwl.Segment) bool) int {
+	minPriority, minIdx := MaxInteger, -1
+	for idx, segment := range row {
+		if segment.Priority < minPriority && eligible(idx, segment) {
+			minPriority, minIdx = segment.Priority, idx
+		}
+	}
+	return minIdx
+}
+
 func (p *powerline) truncateRow(rowNum int) {
-
-	shellMaxLength := termWidth() * p.cfg.MaxWidthPercentage / 100
+	maxWidth := termWidth() * p.cfg.MaxWidthPercentage / 100
+	if maxWidth <= 0 {
+		return
+	}
 	row := p.Segments[rowNum]
-	rowLength := 0
+	width := 0
+	for _, segment := range row {
+		width += segment.Width
+	}
 
-	if shellMaxLength > 0 {
-		for _, segment := range row {
-			rowLength += segment.Width
+	// Shorten long segments, lowest priority first, before dropping any. Each is
+	// shortened at most once: a limit too small to fit the ellipsis leaves it
+	// over the limit, and shortening it again changes nothing.
+	if p.cfg.TruncateSegmentWidth > 0 {
+		shortened := make([]bool, len(row))
+		tooLong := func(idx int, s pwl.Segment) bool {
+			return !shortened[idx] && s.Width > p.cfg.TruncateSegmentWidth
 		}
-
-		if rowLength > shellMaxLength && p.cfg.TruncateSegmentWidth > 0 {
-			minPriorityNotTruncated := MaxInteger
-			minPriorityNotTruncatedSegmentID := -1
-			for idx, segment := range row {
-				if segment.Width > p.cfg.TruncateSegmentWidth && segment.Priority < minPriorityNotTruncated {
-					minPriorityNotTruncated = segment.Priority
-					minPriorityNotTruncatedSegmentID = idx
-				}
+		for width > maxWidth {
+			idx := lowestPriority(row, tooLong)
+			if idx == -1 {
+				break
 			}
-			for minPriorityNotTruncatedSegmentID != -1 && rowLength > shellMaxLength {
-				segment := row[minPriorityNotTruncatedSegmentID]
-
-				rowLength -= segment.Width
-
-				segment.Content = runewidth.Truncate(segment.Content, p.cfg.TruncateSegmentWidth-runewidth.StringWidth(segment.Separator)-3, "…")
-				segment.Width = segment.ComputeWidth(p.cfg.Condensed)
-
-				row = append(append(row[:minPriorityNotTruncatedSegmentID], segment), row[minPriorityNotTruncatedSegmentID+1:]...)
-				rowLength += segment.Width
-
-				minPriorityNotTruncated = MaxInteger
-				minPriorityNotTruncatedSegmentID = -1
-				for idx, segment := range row {
-					if segment.Width > p.cfg.TruncateSegmentWidth && segment.Priority < minPriorityNotTruncated {
-						minPriorityNotTruncated = segment.Priority
-						minPriorityNotTruncatedSegmentID = idx
-					}
-				}
-			}
+			shortened[idx] = true
+			segment := &row[idx]
+			width -= segment.Width
+			segment.Content = runewidth.Truncate(segment.Content, p.cfg.TruncateSegmentWidth-runewidth.StringWidth(segment.Separator)-3, "…")
+			segment.Width = segment.ComputeWidth(p.cfg.Condensed)
+			width += segment.Width
 		}
+	}
 
-		for rowLength > shellMaxLength {
-			minPriority := MaxInteger
-			minPrioritySegmentID := -1
-			for idx, segment := range row {
-				if segment.Priority < minPriority {
-					minPriority = segment.Priority
-					minPrioritySegmentID = idx
-				}
-			}
-			if minPrioritySegmentID != -1 {
-				segment := row[minPrioritySegmentID]
-				row = append(row[:minPrioritySegmentID], row[minPrioritySegmentID+1:]...)
-				rowLength -= segment.Width
-			}
+	always := func(int, pwl.Segment) bool { return true }
+	for width > maxWidth {
+		idx := lowestPriority(row, always)
+		if idx == -1 {
+			break
 		}
+		width -= row[idx].Width
+		row = append(row[:idx], row[idx+1:]...)
 	}
 	p.Segments[rowNum] = row
 }
@@ -351,23 +326,17 @@ func (p *powerline) escapeVariables(text string) string {
 	return text
 }
 
-func (p *powerline) numEastAsianRunes(segmentContent *string) int {
+func (p *powerline) numEastAsianRunes(content string) int {
 	if !p.cfg.EastAsianWidth {
 		return 0
 	}
-	numEastAsianRunes := 0
-	for _, r := range *segmentContent {
-		switch width.LookupRune(r).Kind() {
-		case width.EastAsianAmbiguous:
-			numEastAsianRunes++
-		case width.Neutral:
-		case width.EastAsianWide:
-		case width.EastAsianNarrow:
-		case width.EastAsianFullwidth:
-		case width.EastAsianHalfwidth:
+	n := 0
+	for _, r := range content {
+		if width.LookupRune(r).Kind() == width.EastAsianAmbiguous {
+			n++
 		}
 	}
-	return numEastAsianRunes
+	return n
 }
 
 func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
@@ -425,7 +394,7 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 			buffer.WriteRune(' ')
 		}
 		buffer.WriteString(content)
-		numEastAsianRunes += p.numEastAsianRunes(&segment.Content)
+		numEastAsianRunes += p.numEastAsianRunes(segment.Content)
 		if !p.cfg.Condensed {
 			buffer.WriteRune(' ')
 		}
@@ -444,9 +413,7 @@ func (p *powerline) drawRow(rowNum int, buffer *bytes.Buffer) {
 
 	// Don't append padding for right-aligned modules
 	if !p.isRightPrompt() {
-		for i := 0; i < numEastAsianRunes; i++ {
-			buffer.WriteRune(' ')
-		}
+		buffer.WriteString(strings.Repeat(" ", numEastAsianRunes))
 	}
 }
 

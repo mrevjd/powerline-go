@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"os"
 	"strconv"
 	"testing"
@@ -11,7 +12,7 @@ import (
 // applied), and an unmapped background must not fall back to colour 0 (black).
 func Test_segmentHost_colorize(t *testing.T) {
 	const host = "testhost"
-	hashBg := getMd5(host)[0] % 128
+	hashBg := md5.Sum([]byte(host))[0] % 128
 	otherBg := uint8(42)
 	if otherBg == hashBg {
 		otherBg = 43

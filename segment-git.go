@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,84 +33,78 @@ func (r repoStats) any() bool {
 	return r.ahead+r.behind+r.untracked+r.notStaged+r.staged+r.conflicted+r.stashed > 0
 }
 
-func addRepoStatsSegment(nChanges int, symbol string, foreground uint8, background uint8) []pwl.Segment {
-	if nChanges > 0 {
-		return []pwl.Segment{{
-			Name:       "git-status",
-			Content:    fmt.Sprintf("%d%s", nChanges, symbol),
-			Foreground: foreground,
-			Background: background,
-		}}
+type repoStat struct {
+	count  int
+	symbol string
+	fg, bg uint8
+}
+
+// list returns every stat with its symbol and colours, in display order.
+func (r repoStats) list(p *powerline) []repoStat {
+	s, t := p.symbols, p.theme
+	return []repoStat{
+		{r.ahead, s.RepoAhead, t.GitAheadFg, t.GitAheadBg},
+		{r.behind, s.RepoBehind, t.GitBehindFg, t.GitBehindBg},
+		{r.staged, s.RepoStaged, t.GitStagedFg, t.GitStagedBg},
+		{r.notStaged, s.RepoNotStaged, t.GitNotStagedFg, t.GitNotStagedBg},
+		{r.untracked, s.RepoUntracked, t.GitUntrackedFg, t.GitUntrackedBg},
+		{r.conflicted, s.RepoConflicted, t.GitConflictedFg, t.GitConflictedBg},
+		{r.stashed, s.RepoStashed, t.GitStashedFg, t.GitStashedBg},
 	}
-	return []pwl.Segment{}
 }
 
-func (r repoStats) GitSegments(p *powerline) (segments []pwl.Segment) {
-	segments = append(segments, addRepoStatsSegment(r.ahead, p.symbols.RepoAhead, p.theme.GitAheadFg, p.theme.GitAheadBg)...)
-	segments = append(segments, addRepoStatsSegment(r.behind, p.symbols.RepoBehind, p.theme.GitBehindFg, p.theme.GitBehindBg)...)
-	segments = append(segments, addRepoStatsSegment(r.staged, p.symbols.RepoStaged, p.theme.GitStagedFg, p.theme.GitStagedBg)...)
-	segments = append(segments, addRepoStatsSegment(r.notStaged, p.symbols.RepoNotStaged, p.theme.GitNotStagedFg, p.theme.GitNotStagedBg)...)
-	segments = append(segments, addRepoStatsSegment(r.untracked, p.symbols.RepoUntracked, p.theme.GitUntrackedFg, p.theme.GitUntrackedBg)...)
-	segments = append(segments, addRepoStatsSegment(r.conflicted, p.symbols.RepoConflicted, p.theme.GitConflictedFg, p.theme.GitConflictedBg)...)
-	segments = append(segments, addRepoStatsSegment(r.stashed, p.symbols.RepoStashed, p.theme.GitStashedFg, p.theme.GitStashedBg)...)
-	return
-}
-
-func addRepoStatsSymbol(nChanges int, symbol string, GitMode string) string {
-	if nChanges > 0 {
-		if GitMode == "simple" {
-			return symbol
-		} else if GitMode == "compact" {
-			return fmt.Sprintf(" %d%s", nChanges, symbol )
-		} else {
-			return symbol
+// segments renders each non-zero stat as its own segment, for the fancy mode.
+func (r repoStats) segments(p *powerline, name string) []pwl.Segment {
+	var segments []pwl.Segment
+	for _, stat := range r.list(p) {
+		if stat.count > 0 {
+			segments = append(segments, pwl.Segment{
+				Name:       name,
+				Content:    fmt.Sprintf("%d%s", stat.count, stat.symbol),
+				Foreground: stat.fg,
+				Background: stat.bg,
+			})
 		}
 	}
-	return ""
+	return segments
 }
 
-func (r repoStats) GitSymbols(p *powerline) string {
-	var info string
-	info += addRepoStatsSymbol(r.ahead, p.symbols.RepoAhead, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.behind, p.symbols.RepoBehind, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.staged, p.symbols.RepoStaged, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.notStaged, p.symbols.RepoNotStaged, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.untracked, p.symbols.RepoUntracked, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.conflicted, p.symbols.RepoConflicted, p.cfg.GitMode)
-	info += addRepoStatsSymbol(r.stashed, p.symbols.RepoStashed, p.cfg.GitMode)
-	return info
+// summary renders the non-zero stats inline: with their counts in compact mode,
+// as bare symbols otherwise.
+func (r repoStats) summary(p *powerline) string {
+	var b strings.Builder
+	for _, stat := range r.list(p) {
+		if stat.count == 0 {
+			continue
+		}
+		if p.cfg.GitMode == "compact" {
+			fmt.Fprintf(&b, " %d%s", stat.count, stat.symbol)
+		} else {
+			b.WriteString(stat.symbol)
+		}
+	}
+	return b.String()
 }
 
 var branchRegex = regexp.MustCompile(`^## (?P<local>\S+?)(\.{3}(?P<remote>\S+?)( \[(ahead (?P<ahead>\d+)(, )?)?(behind (?P<behind>\d+))?])?)?$`)
 
 func groupDict(pattern *regexp.Regexp, haystack string) map[string]string {
-	match := pattern.FindStringSubmatch(haystack)
 	result := make(map[string]string)
-	if len(match) > 0 {
-		for i, name := range pattern.SubexpNames() {
-			if i != 0 {
-				result[name] = match[i]
-			}
+	if match := pattern.FindStringSubmatch(haystack); match != nil {
+		for i, name := range pattern.SubexpNames()[1:] {
+			result[name] = match[i+1]
 		}
 	}
 	return result
 }
 
-var gitProcessEnv = func() []string {
-	homeEnv := homeEnvName()
-	home, _ := os.LookupEnv(homeEnv)
-	path, _ := os.LookupEnv("PATH")
-	env := map[string]string{
-		"LANG":  "C",
-		homeEnv: home,
-		"PATH":  path,
-	}
-	result := make([]string, 0)
-	for key, value := range env {
-		result = append(result, fmt.Sprintf("%s=%s", key, value))
-	}
-	return result
-}()
+// gitProcessEnv runs git with a minimal environment, so user configuration such
+// as LANG cannot change the output being parsed.
+var gitProcessEnv = []string{
+	"LANG=C",
+	homeEnvName() + "=" + os.Getenv(homeEnvName()),
+	"PATH=" + os.Getenv("PATH"),
+}
 
 func runGitCommand(cmd string, args ...string) (string, error) {
 	command := exec.Command(cmd, args...)
@@ -176,50 +170,52 @@ func runBackgroundFetch(timeout string) {
 	_ = cmd.Run()
 }
 
-func parseGitBranchInfo(status []string) map[string]string {
-	return groupDict(branchRegex, status[0])
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	return line
 }
 
 func getGitDetachedBranch(p *powerline) string {
 	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--short", "HEAD")
-	if err != nil {
-		out, err := runGitCommand("git", "--no-optional-locks", "symbolic-ref", "--short", "HEAD")
-		if err != nil {
-			return "Error"
-		}
-		return strings.SplitN(out, "\n", 2)[0]
+	if err == nil {
+		return p.symbols.RepoDetached + " " + firstLine(out)
 	}
-	detachedRef := strings.SplitN(out, "\n", 2)
-	return fmt.Sprintf("%s %s", p.symbols.RepoDetached, detachedRef[0])
+	out, err = runGitCommand("git", "--no-optional-locks", "symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return "Error"
+	}
+	return firstLine(out)
 }
 
+// parseGitStats counts the file entries of `git status --porcelain -b` output,
+// whose first line is the branch header.
 func parseGitStats(status []string) repoStats {
 	stats := repoStats{}
-	if len(status) > 1 {
-		for _, line := range status[1:] {
-			if len(line) > 2 {
-				code := line[:2]
-				switch code {
-				case "??":
-					stats.untracked++
-				case "DD", "AU", "UD", "UA", "DU", "AA", "UU":
-					stats.conflicted++
-				default:
-					if code[0] != ' ' {
-						stats.staged++
-					}
-
-					if code[1] != ' ' {
-						stats.notStaged++
-					}
-				}
+	if len(status) < 2 {
+		return stats
+	}
+	for _, line := range status[1:] {
+		if len(line) <= 2 {
+			continue
+		}
+		switch code := line[:2]; code {
+		case "??":
+			stats.untracked++
+		case "DD", "AU", "UD", "UA", "DU", "AA", "UU":
+			stats.conflicted++
+		default:
+			if code[0] != ' ' {
+				stats.staged++
+			}
+			if code[1] != ' ' {
+				stats.notStaged++
 			}
 		}
 	}
 	return stats
 }
 
-func repoRoot(path string) (string, error) {
+func repoRoot() (string, error) {
 	out, err := runGitCommand("git", "--no-optional-locks", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
@@ -228,31 +224,22 @@ func repoRoot(path string) (string, error) {
 }
 
 func indexSize(root string) (int64, error) {
-	fileInfo, err := os.Stat(path.Join(root, ".git", "index"))
+	fileInfo, err := os.Stat(filepath.Join(root, ".git", "index"))
 	if err != nil {
 		return 0, err
 	}
-
 	return fileInfo.Size(), nil
 }
 
 func segmentGit(p *powerline) []pwl.Segment {
-	repoRoot, err := repoRoot(p.cwd)
-	if err != nil {
+	root, err := repoRoot()
+	if err != nil || p.ignoreRepos[root] {
 		return []pwl.Segment{}
 	}
 
-	if len(p.ignoreRepos) > 0 && p.ignoreRepos[repoRoot] {
-		return []pwl.Segment{}
-	}
-
-	args := []string{
-		"--no-optional-locks", "status", "--porcelain", "-b", "--ignore-submodules",
-	}
-
+	args := []string{"--no-optional-locks", "status", "--porcelain", "-b", "--ignore-submodules"}
 	if p.cfg.GitAssumeUnchangedSize > 0 {
-		indexSize, _ := indexSize(p.cwd)
-		if indexSize > (p.cfg.GitAssumeUnchangedSize * 1024) {
+		if size, _ := indexSize(root); size > p.cfg.GitAssumeUnchangedSize*1024 {
 			args = append(args, "-uno")
 		}
 	}
@@ -264,8 +251,7 @@ func segmentGit(p *powerline) []pwl.Segment {
 
 	status := strings.Split(out, "\n")
 	stats := parseGitStats(status)
-	branchInfo := parseGitBranchInfo(status)
-	var branch string
+	branchInfo := groupDict(branchRegex, status[0])
 
 	if p.cfg.GitFetchInterval > 0 && branchInfo["remote"] != "" {
 		interval := time.Duration(p.cfg.GitFetchInterval) * time.Minute
@@ -274,41 +260,24 @@ func segmentGit(p *powerline) []pwl.Segment {
 		startBackgroundFetch(interval, max(interval, 10*time.Minute))
 	}
 
+	var branch string
 	if branchInfo["local"] != "" {
-		ahead, _ := strconv.ParseInt(branchInfo["ahead"], 10, 32)
-		stats.ahead = int(ahead)
-
-		behind, _ := strconv.ParseInt(branchInfo["behind"], 10, 32)
-		stats.behind = int(behind)
-
+		stats.ahead, _ = strconv.Atoi(branchInfo["ahead"])
+		stats.behind, _ = strconv.Atoi(branchInfo["behind"])
 		branch = branchInfo["local"]
 	} else {
 		branch = getGitDetachedBranch(p)
 	}
-
-	if len(p.symbols.RepoBranch) > 0 {
-		branch = fmt.Sprintf("%s %s", p.symbols.RepoBranch, branch)
+	if p.symbols.RepoBranch != "" {
+		branch = p.symbols.RepoBranch + " " + branch
 	}
 
-	var foreground, background uint8
+	foreground, background := p.theme.RepoCleanFg, p.theme.RepoCleanBg
 	if stats.dirty() {
-		foreground = p.theme.RepoDirtyFg
-		background = p.theme.RepoDirtyBg
-	} else {
-		foreground = p.theme.RepoCleanFg
-		background = p.theme.RepoCleanBg
+		foreground, background = p.theme.RepoDirtyFg, p.theme.RepoDirtyBg
 	}
 
-	segments := []pwl.Segment{{
-		Name:       "git-branch",
-		Content:    branch,
-		Foreground: foreground,
-		Background: background,
-	}}
-
-	stashEnabled := true
 	for _, stat := range p.cfg.GitDisableStats {
-		// "ahead, behind, staged, notStaged, untracked, conflicted, stashed"
 		switch stat {
 		case "ahead":
 			stats.ahead = 0
@@ -322,30 +291,29 @@ func segmentGit(p *powerline) []pwl.Segment {
 			stats.untracked = 0
 		case "conflicted":
 			stats.conflicted = 0
-		case "stashed":
-			stats.stashed = 0
-			stashEnabled = false
 		}
 	}
-
-	if stashEnabled {
-		out, err = runGitCommand("git", "--no-optional-locks", "rev-list", "-g", "refs/stash")
-		if err == nil {
+	if !slices.Contains(p.cfg.GitDisableStats, "stashed") {
+		if out, err := runGitCommand("git", "--no-optional-locks", "rev-list", "-g", "refs/stash"); err == nil {
 			stats.stashed = strings.Count(out, "\n")
 		}
 	}
 
-	if p.cfg.GitMode == "simple" {
-		if stats.any() {
-			segments[0].Content += " " + stats.GitSymbols(p)
-		}
-	} else if p.cfg.GitMode == "compact" {
-		if stats.any() {
-			segments[0].Content += stats.GitSymbols(p)
-		}
-	} else { // fancy
-		segments = append(segments, stats.GitSegments(p)...)
+	segment := pwl.Segment{
+		Name:       "git-branch",
+		Content:    branch,
+		Foreground: foreground,
+		Background: background,
 	}
-
-	return segments
+	switch p.cfg.GitMode {
+	case "simple":
+		if stats.any() {
+			segment.Content += " " + stats.summary(p)
+		}
+	case "compact":
+		segment.Content += stats.summary(p)
+	default: // fancy
+		return append([]pwl.Segment{segment}, stats.segments(p, "git-status")...)
+	}
+	return []pwl.Segment{segment}
 }
