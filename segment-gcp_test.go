@@ -34,6 +34,25 @@ func TestGCPProjectFromFileWithoutActiveConfig(t *testing.T) {
 	}
 }
 
+// An active_config that is not a regular file is ignored rather than read:
+// reading a directory can panic on some filesystems (#419).
+func TestGCPProjectFromFileActiveConfigIsDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	gcloud := writeGCloudConfig(t, home, "default", "[core]\nproject = my-project\n")
+	if err := os.Mkdir(filepath.Join(gcloud, "active_config"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := getGCPProjectFromFile()
+	if err != nil {
+		t.Fatalf("getGCPProjectFromFile: %v", err)
+	}
+	if got != "my-project" {
+		t.Errorf("project = %q, want %q", got, "my-project")
+	}
+}
+
 // A section before [core] used to have its offset applied twice to the
 // remaining bytes, which skipped lines or sliced past the end and panicked.
 func TestGCPProjectFromFileCoreNotFirst(t *testing.T) {

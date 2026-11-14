@@ -245,10 +245,10 @@ func termWidth() int {
 // lowestPriority returns the index of the lowest-priority segment in row that
 // eligible accepts, or -1 if there is none. A segment at MaxInteger priority is
 // never chosen: that is how a segment such as termtitle asks not to be touched.
-func lowestPriority(row []pwl.Segment, eligible func(pwl.Segment) bool) int {
+func lowestPriority(row []pwl.Segment, eligible func(int, pwl.Segment) bool) int {
 	minPriority, minIdx := MaxInteger, -1
 	for idx, segment := range row {
-		if segment.Priority < minPriority && eligible(segment) {
+		if segment.Priority < minPriority && eligible(idx, segment) {
 			minPriority, minIdx = segment.Priority, idx
 		}
 	}
@@ -266,14 +266,20 @@ func (p *powerline) truncateRow(rowNum int) {
 		width += segment.Width
 	}
 
-	// Shorten long segments, lowest priority first, before dropping any.
+	// Shorten long segments, lowest priority first, before dropping any. Each is
+	// shortened at most once: a limit too small to fit the ellipsis leaves it
+	// over the limit, and shortening it again changes nothing.
 	if p.cfg.TruncateSegmentWidth > 0 {
-		tooLong := func(s pwl.Segment) bool { return s.Width > p.cfg.TruncateSegmentWidth }
+		shortened := make([]bool, len(row))
+		tooLong := func(idx int, s pwl.Segment) bool {
+			return !shortened[idx] && s.Width > p.cfg.TruncateSegmentWidth
+		}
 		for width > maxWidth {
 			idx := lowestPriority(row, tooLong)
 			if idx == -1 {
 				break
 			}
+			shortened[idx] = true
 			segment := &row[idx]
 			width -= segment.Width
 			segment.Content = runewidth.Truncate(segment.Content, p.cfg.TruncateSegmentWidth-runewidth.StringWidth(segment.Separator)-3, "…")
@@ -282,7 +288,7 @@ func (p *powerline) truncateRow(rowNum int) {
 		}
 	}
 
-	always := func(pwl.Segment) bool { return true }
+	always := func(int, pwl.Segment) bool { return true }
 	for width > maxWidth {
 		idx := lowestPriority(row, always)
 		if idx == -1 {

@@ -21,8 +21,13 @@ func runCommand(cmd string, args ...string) (string, error) {
 	return string(out), err
 }
 
-// readTrimmed returns the contents of path without surrounding whitespace.
+// readTrimmed returns the contents of path without surrounding whitespace. Only
+// regular files are read: reading a directory can panic inside os.ReadFile on
+// filesystems that report a bogus size (FUSE, Ceph). See #419.
 func readTrimmed(path string) (string, bool) {
+	if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
 	contents, err := os.ReadFile(path)
 	if err != nil {
 		return "", false

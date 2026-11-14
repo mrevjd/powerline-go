@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,20 +24,13 @@ func getCloudConfigDir() (string, error) {
 }
 
 // getActiveGCloudConfig names the active configuration. gcloud only writes
-// active_config once a second configuration exists, so without it the active
-// one is "default".
-func getActiveGCloudConfig(configDir string) (string, error) {
-	contents, err := os.ReadFile(filepath.Join(configDir, "active_config"))
-	if errors.Is(err, os.ErrNotExist) {
-		return "default", nil
+// active_config once a second configuration exists, so without a readable one
+// the active configuration is "default".
+func getActiveGCloudConfig(configDir string) string {
+	if config, ok := readTrimmed(filepath.Join(configDir, "active_config")); ok && config != "" {
+		return config
 	}
-	if err != nil {
-		return "", err
-	}
-	if config := strings.TrimSpace(string(contents)); config != "" {
-		return config, nil
-	}
-	return "default", nil
+	return "default"
 }
 
 func getGCPProjectFromGCloud() (string, error) {
@@ -54,12 +46,7 @@ func getGCPProjectFromFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	activeConfig, err := getActiveGCloudConfig(configDir)
-	if err != nil {
-		return "", err
-	}
-
-	configPath := filepath.Join(configDir, "configurations", "config_"+activeConfig)
+	configPath := filepath.Join(configDir, "configurations", "config_"+getActiveGCloudConfig(configDir))
 	stat, err := os.Stat(configPath)
 	if err != nil {
 		return "", err
