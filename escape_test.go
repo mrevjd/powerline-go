@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 // injection is a payload bash and zsh both evaluate if it reaches PS1/PROMPT

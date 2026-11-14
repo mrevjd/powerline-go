@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 func Test_detectShell(t *testing.T) {

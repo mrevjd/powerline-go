@@ -43,7 +43,7 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X github.com/justjanne/powerline-go/powerline.Version={{ .Version }}
+      - -X github.com/mrevjd/powerline-go/powerline.Version={{ .Version }}
 
 archives:
   - name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'

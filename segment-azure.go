@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 // utf8BOM is the UTF-8 byte order mark that Azure CLI may add to JSON files

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 func segmentSSH(p *powerline) []pwl.Segment {

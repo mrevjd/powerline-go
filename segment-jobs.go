@@ -3,7 +3,7 @@ package main
 import (
 	"strconv"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 func segmentJobs(p *powerline) []pwl.Segment {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	pwl "github.com/justjanne/powerline-go/powerline"
+	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
 // firstWordOf runs a version manager's "which version" command and returns the
