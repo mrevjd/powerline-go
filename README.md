@@ -72,11 +72,11 @@ It needs git 2.29 or later.
 
 ## Installation
 
-Builds with the Go 1.25 toolchain. Go 1.21 through 1.24 will download it
+Builds with the Go 1.26 toolchain. Go 1.21 through 1.25 will download it
 automatically on first build, which needs network access to the toolchain proxy;
-with `GOTOOLCHAIN=local`, or on any Go below 1.21, install Go 1.25 yourself.
+with `GOTOOLCHAIN=local`, or on any Go below 1.21, install Go 1.26 yourself.
 macOS binaries published from this fork's own releases require macOS 12 or
-later, that being Go 1.25's floor. Upstream's releases predate that floor and
+later, that being Go 1.26's floor. Upstream's releases predate that floor and
 carry no such requirement.
 
 `powerline-go` uses ANSI color codes, these should nowadays work everywhere,
