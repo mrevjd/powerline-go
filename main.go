@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"math"
 	"os"
 	"strings"
 
@@ -18,17 +19,8 @@ const (
 	alignRight
 )
 
-const (
-	// MinUnsignedInteger minimum unsigned integer
-	MinUnsignedInteger uint = 0
-	// MaxUnsignedInteger maximum unsigned integer
-	MaxUnsignedInteger = ^MinUnsignedInteger
-	// MaxInteger maximum integer
-	MaxInteger = int(MaxUnsignedInteger >> 1)
-	/* MinInteger minimum integer
-	MinInteger = ^MaxInteger
-	*/
-)
+// MaxInteger is the priority of a segment that must never be truncated.
+const MaxInteger = math.MaxInt
 
 func warn(msg string) {
 	if *args.IgnoreWarnings {
@@ -39,10 +31,26 @@ func warn(msg string) {
 }
 
 func pathExists(path string) bool {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false
+	_, err := os.Stat(path)
+	return !errors.Is(err, os.ErrNotExist)
+}
+
+// loadJSONOverride registers the theme or mode file named by name (when it ends
+// in .json) in entries, decoded on top of base so it only sets what it changes.
+func loadJSONOverride[T any](name string, entries map[string]T, base T, what string) {
+	if !strings.HasSuffix(name, ".json") {
+		return
 	}
-	return true
+	file, err := os.ReadFile(name)
+	if err != nil {
+		return
+	}
+	if err := json.Unmarshal(file, &base); err != nil {
+		println("Error reading " + what)
+		println(err.Error())
+		return
+	}
+	entries[name] = base
 }
 
 func getValidCwd() string {
@@ -245,33 +253,8 @@ func main() {
 		}
 	})
 
-	if strings.HasSuffix(cfg.Theme, ".json") {
-		file, err := ioutil.ReadFile(cfg.Theme)
-		if err == nil {
-			theme := cfg.Themes[defaults.Theme]
-			err = json.Unmarshal(file, &theme)
-			if err == nil {
-				cfg.Themes[cfg.Theme] = theme
-			} else {
-				println("Error reading theme")
-				println(err.Error())
-			}
-		}
-	}
-
-	if strings.HasSuffix(cfg.Mode, ".json") {
-		file, err := ioutil.ReadFile(cfg.Mode)
-		if err == nil {
-			symbols := cfg.Modes[defaults.Mode]
-			err = json.Unmarshal(file, &symbols)
-			if err == nil {
-				cfg.Modes[cfg.Mode] = symbols
-			} else {
-				println("Error reading mode")
-				println(err.Error())
-			}
-		}
-	}
+	loadJSONOverride(cfg.Theme, cfg.Themes, cfg.Themes[defaults.Theme], "theme")
+	loadJSONOverride(cfg.Mode, cfg.Modes, cfg.Modes[defaults.Mode], "mode")
 
 	p := newPowerline(cfg, getValidCwd(), alignLeft)
 	if p.supportsRightModules() && p.hasRightModules() && !cfg.Eval {

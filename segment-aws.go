@@ -24,7 +24,7 @@ func segmentAWS(p *powerline) []pwl.Segment {
 	}
 
 	if len(profile) > 0 {
-		content = profile +" "+ content
+		content = profile + " " + content
 	}
 
 	if len(content) == 0 {

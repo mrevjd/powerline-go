@@ -15,12 +15,6 @@ func getHostName(fullyQualifiedDomainName string, keepFqdnHostname bool) string 
 	return strings.SplitN(fullyQualifiedDomainName, ".", 2)[0]
 }
 
-func getMd5(text string) []byte {
-	hasher := md5.New()
-	hasher.Write([]byte(text))
-	return hasher.Sum(nil)
-}
-
 func segmentHost(p *powerline) []pwl.Segment {
 	var hostPrompt string
 	var foreground, background uint8
@@ -43,7 +37,7 @@ func segmentHost(p *powerline) []pwl.Segment {
 		// colour be overridden independently via the env vars. The foreground
 		// tracks the final background so it stays readable, so PLGO_HOSTNAMEFG
 		// and PLGO_HOSTNAMEBG no longer have to be set as a pair.
-		background = getMd5(hostName)[0] % 128
+		background = md5.Sum([]byte(hostName))[0] % 128
 		if bg, err := strconv.ParseUint(os.Getenv("PLGO_HOSTNAMEBG"), 0, 8); err == nil {
 			background = uint8(bg)
 		}

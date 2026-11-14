@@ -34,4 +34,3 @@ var Signals = map[int]string{
 	0x1f: "SIGUSR2",
 	0x20: "SIGTHR",
 }
-

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	pwl "github.com/mrevjd/powerline-go/powerline"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -49,17 +48,15 @@ func readKubeConfig(config *KubeConfig, path string) (err error) {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("kube config is not a regular file: %s", absolutePath)
 	}
-	fileContent, err := ioutil.ReadFile(absolutePath)
+	fileContent, err := os.ReadFile(absolutePath)
 	if err != nil {
 		return
 	}
-	err = yaml.Unmarshal(fileContent, config)
-	if err != nil {
-		return
-	}
-
-	return
+	return yaml.Unmarshal(fileContent, config)
 }
+
+// eksARN matches an AWS EKS cluster ARN, capturing the cluster's own name.
+var eksARN = regexp.MustCompile("^arn:aws:eks:[[:alnum:]-]+:[[:digit:]]+:cluster/(.*)$")
 
 func segmentKube(p *powerline) []pwl.Segment {
 	paths := append(strings.Split(os.Getenv("KUBECONFIG"), ":"), path.Join(homePath(), ".kube", "config"))
@@ -114,10 +111,7 @@ func segmentKube(p *powerline) []pwl.Segment {
 
 	// With AWS EKS, cluster names are ARNs; it makes more sense to shorten them
 	// so "eks-infra" instead of "arn:aws:eks:us-east-1:XXXXXXXXXXXX:cluster/eks-infra
-	const arnRegexString string = "^arn:aws:eks:[[:alnum:]-]+:[[:digit:]]+:cluster/(.*)$"
-	arnRe := regexp.MustCompile(arnRegexString)
-
-	if arnMatches := arnRe.FindStringSubmatch(cluster); arnMatches != nil && p.cfg.ShortenEKSNames {
+	if arnMatches := eksARN.FindStringSubmatch(cluster); arnMatches != nil && p.cfg.ShortenEKSNames {
 		cluster = arnMatches[1]
 	}
 	segments := []pwl.Segment{}

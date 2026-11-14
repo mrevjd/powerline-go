@@ -1,52 +1,36 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	pwl "github.com/mrevjd/powerline-go/powerline"
 )
 
-const gcloudCoreSectionHeader = "\n[core]\n"
-
 func getCloudConfigDir() (string, error) {
-	p, err := os.UserHomeDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	if runtime.GOOS != "windows" {
-		p += "/.config"
+	if runtime.GOOS == "windows" {
+		return filepath.Join(home, "gcloud"), nil
 	}
-	p += "/gcloud"
-	return p, nil
+	return filepath.Join(home, ".config", "gcloud"), nil
 }
 
-func getActiveGCloudConfig(configDir string) (string, error) {
-	activeConfigPath := configDir + "/active_config"
-
-	stat, err := os.Stat(activeConfigPath)
-	if (err == nil && os.IsNotExist(err)) || (err == nil && stat.IsDir()) {
-		return "default", nil
-	} else if err != nil {
-		return "", err
+// getActiveGCloudConfig names the active configuration. gcloud only writes
+// active_config once a second configuration exists, so without a readable one
+// the active configuration is "default".
+func getActiveGCloudConfig(configDir string) string {
+	if config, ok := readTrimmed(filepath.Join(configDir, "active_config")); ok && config != "" {
+		return config
 	}
-
-	contents, err := os.ReadFile(activeConfigPath)
-	if err != nil {
-		return "", err
-	}
-
-	config := strings.TrimSpace(string(contents))
-	if config == "" {
-		config = "default"
-	}
-
-	return config, nil
+	return "default"
 }
 
 func getGCPProjectFromGCloud() (string, error) {
@@ -54,7 +38,6 @@ func getGCPProjectFromGCloud() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	return strings.TrimSuffix(string(out), "\n"), nil
 }
 
@@ -63,65 +46,55 @@ func getGCPProjectFromFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	activeConfig, err := getActiveGCloudConfig(configDir)
-	if err != nil {
-		return "", err
-	}
-
-	configPath := configDir + "/configurations/config_" + activeConfig
+	configPath := filepath.Join(configDir, "configurations", "config_"+getActiveGCloudConfig(configDir))
 	stat, err := os.Stat(configPath)
 	if err != nil {
 		return "", err
-	} else if stat.IsDir() {
+	}
+	if stat.IsDir() {
 		return "", fmt.Errorf("%s is a directory", configPath)
 	}
-
-	b, err := os.ReadFile(configPath)
+	file, err := os.Open(configPath)
 	if err != nil {
 		return "", err
 	}
-	b = append([]byte("\n"), b...)
+	defer file.Close()
 
-	coreStart := bytes.Index(b, []byte(gcloudCoreSectionHeader))
-	if coreStart == -1 {
-		return "", fmt.Errorf("could not find [core] section in %s", configPath)
-	}
-	b = b[coreStart+len(gcloudCoreSectionHeader):]
-
-	coreEnd := bytes.Index(b, []byte("\n["))
-	if coreEnd != -1 {
-		b = b[:coreEnd]
-	}
-
-	lines := bytes.Split(b[coreStart+len(gcloudCoreSectionHeader):], []byte("\n"))
-	for _, line := range lines {
-		parts := bytes.Split(line, []byte("="))
-		if len(parts) == 2 {
-			if strings.TrimSpace(string(parts[0])) == "project" {
-				return strings.TrimSpace(string(parts[1])), nil
-			}
+	foundCore, inCore := false, false
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "[") {
+			inCore = line == "[core]"
+			foundCore = foundCore || inCore
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if inCore && ok && strings.TrimSpace(key) == "project" {
+			return strings.TrimSpace(value), nil
 		}
 	}
-
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	if !foundCore {
+		return "", fmt.Errorf("could not find [core] section in %s", configPath)
+	}
 	return "", nil
 }
 
 func getGCPProject() (string, error) {
 	if project, err := getGCPProjectFromFile(); err == nil {
 		return project, nil
-	} else {
-		return getGCPProjectFromGCloud()
 	}
+	return getGCPProjectFromGCloud()
 }
 
 func segmentGCP(p *powerline) []pwl.Segment {
+	// No readable config and no gcloud on PATH just means there is no project to
+	// show. This used to log.Fatal, which took the whole prompt down with it.
 	project, err := getGCPProject()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if project == "" {
+	if err != nil || project == "" {
 		return []pwl.Segment{}
 	}
 	return []pwl.Segment{{
