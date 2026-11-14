@@ -17,6 +17,7 @@ var defaults = Config{
 	GitAssumeUnchangedSize: 2048,
 	GitDisableStats:        []string{},
 	GitMode:                "fancy",
+	GitFetchInterval:       0,
 	Mode:                   "patched",
 	Theme:                  "default",
 	Shell:                  "autodetect",

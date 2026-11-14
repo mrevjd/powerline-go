@@ -28,6 +28,7 @@ type Config struct {
 	GitAssumeUnchangedSize int64     `json:"git-assume-unchanged-size"`
 	GitDisableStats        []string  `json:"git-disable-stats"`
 	GitMode                string    `json:"git-mode"`
+	GitFetchInterval       int       `json:"git-fetch-interval"`
 	Mode                   string    `json:"mode"`
 	Theme                  string    `json:"theme"`
 	Shell                  string    `json:"shell"`

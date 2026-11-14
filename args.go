@@ -20,6 +20,7 @@ type arguments struct {
 	GitAssumeUnchangedSize *int64
 	GitDisableStats        *string
 	GitMode                *string
+	GitFetchInterval       *int
 	Jobs                   *int
 	Mode                   *string
 	Theme                  *string
@@ -118,6 +119,11 @@ var args = arguments{
 		defaults.GitMode,
 		commentsWithDefaults("How to display git status",
 			"(valid choices: fancy, compact, simple)")),
+	GitFetchInterval: flag.Int(
+		"git-fetch-interval",
+		defaults.GitFetchInterval,
+		comments("Fetch the current branch's remote in the background at most once every N minutes, keeping ahead/behind current (defaults to 0, which is disabled).",
+			"The fetch never prompts for credentials, so it only succeeds where you are already authenticated")),
 	Mode: flag.String(
 		"mode",
 		defaults.Mode,
