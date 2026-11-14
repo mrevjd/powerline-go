@@ -251,7 +251,7 @@ func segmentGit(p *powerline) []pwl.Segment {
 	}
 
 	if p.cfg.GitAssumeUnchangedSize > 0 {
-		indexSize, _ := indexSize(p.cwd)
+		indexSize, _ := indexSize(repoRoot)
 		if indexSize > (p.cfg.GitAssumeUnchangedSize * 1024) {
 			args = append(args, "-uno")
 		}

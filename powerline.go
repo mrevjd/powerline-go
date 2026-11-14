@@ -264,63 +264,54 @@ func termWidth() int {
 	return termWidth
 }
 
+// lowestPriority returns the index of the lowest-priority segment in row that
+// eligible accepts, or -1 if there is none. A segment at MaxInteger priority is
+// never chosen: that is how a segment such as termtitle asks not to be touched.
+func lowestPriority(row []pwl.Segment, eligible func(pwl.Segment) bool) int {
+	minPriority, minIdx := MaxInteger, -1
+	for idx, segment := range row {
+		if segment.Priority < minPriority && eligible(segment) {
+			minPriority, minIdx = segment.Priority, idx
+		}
+	}
+	return minIdx
+}
+
 func (p *powerline) truncateRow(rowNum int) {
-
-	shellMaxLength := termWidth() * p.cfg.MaxWidthPercentage / 100
+	maxWidth := termWidth() * p.cfg.MaxWidthPercentage / 100
+	if maxWidth <= 0 {
+		return
+	}
 	row := p.Segments[rowNum]
-	rowLength := 0
+	width := 0
+	for _, segment := range row {
+		width += segment.Width
+	}
 
-	if shellMaxLength > 0 {
-		for _, segment := range row {
-			rowLength += segment.Width
+	// Shorten long segments, lowest priority first, before dropping any.
+	if p.cfg.TruncateSegmentWidth > 0 {
+		tooLong := func(s pwl.Segment) bool { return s.Width > p.cfg.TruncateSegmentWidth }
+		for width > maxWidth {
+			idx := lowestPriority(row, tooLong)
+			if idx == -1 {
+				break
+			}
+			segment := &row[idx]
+			width -= segment.Width
+			segment.Content = runewidth.Truncate(segment.Content, p.cfg.TruncateSegmentWidth-runewidth.StringWidth(segment.Separator)-3, "…")
+			segment.Width = segment.ComputeWidth(p.cfg.Condensed)
+			width += segment.Width
 		}
+	}
 
-		if rowLength > shellMaxLength && p.cfg.TruncateSegmentWidth > 0 {
-			minPriorityNotTruncated := MaxInteger
-			minPriorityNotTruncatedSegmentID := -1
-			for idx, segment := range row {
-				if segment.Width > p.cfg.TruncateSegmentWidth && segment.Priority < minPriorityNotTruncated {
-					minPriorityNotTruncated = segment.Priority
-					minPriorityNotTruncatedSegmentID = idx
-				}
-			}
-			for minPriorityNotTruncatedSegmentID != -1 && rowLength > shellMaxLength {
-				segment := row[minPriorityNotTruncatedSegmentID]
-
-				rowLength -= segment.Width
-
-				segment.Content = runewidth.Truncate(segment.Content, p.cfg.TruncateSegmentWidth-runewidth.StringWidth(segment.Separator)-3, "…")
-				segment.Width = segment.ComputeWidth(p.cfg.Condensed)
-
-				row = append(append(row[:minPriorityNotTruncatedSegmentID], segment), row[minPriorityNotTruncatedSegmentID+1:]...)
-				rowLength += segment.Width
-
-				minPriorityNotTruncated = MaxInteger
-				minPriorityNotTruncatedSegmentID = -1
-				for idx, segment := range row {
-					if segment.Width > p.cfg.TruncateSegmentWidth && segment.Priority < minPriorityNotTruncated {
-						minPriorityNotTruncated = segment.Priority
-						minPriorityNotTruncatedSegmentID = idx
-					}
-				}
-			}
+	always := func(pwl.Segment) bool { return true }
+	for width > maxWidth {
+		idx := lowestPriority(row, always)
+		if idx == -1 {
+			break
 		}
-
-		for rowLength > shellMaxLength {
-			minPriority := MaxInteger
-			minPrioritySegmentID := -1
-			for idx, segment := range row {
-				if segment.Priority < minPriority {
-					minPriority = segment.Priority
-					minPrioritySegmentID = idx
-				}
-			}
-			if minPrioritySegmentID != -1 {
-				segment := row[minPrioritySegmentID]
-				row = append(row[:minPrioritySegmentID], row[minPrioritySegmentID+1:]...)
-				rowLength -= segment.Width
-			}
-		}
+		width -= row[idx].Width
+		row = append(row[:idx], row[idx+1:]...)
 	}
 	p.Segments[rowNum] = row
 }

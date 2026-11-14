@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	pwl "github.com/justjanne/powerline-go/powerline"
+)
 
 func Test_detectShell(t *testing.T) {
 	tests := []struct {
@@ -30,5 +35,28 @@ func Test_detectShell(t *testing.T) {
 				t.Errorf("detectShell(%q) = %q, want %q", tt.name, got, tt.want)
 			}
 		})
+	}
+}
+
+// A row that is too wide but holds nothing truncateRow may drop (termtitle's
+// MaxInteger priority) used to spin forever looking for a segment to remove.
+func TestTruncateRowTerminatesWithUndroppableSegments(t *testing.T) {
+	t.Setenv("COLUMNS", "20")
+	p := &powerline{
+		cfg:      Config{MaxWidthPercentage: 100},
+		Segments: [][]pwl.Segment{{{Content: "wide", Width: 1 << 20, Priority: MaxInteger}}},
+	}
+	done := make(chan struct{})
+	go func() {
+		p.truncateRow(0)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("truncateRow did not return")
+	}
+	if len(p.Segments[0]) != 1 {
+		t.Errorf("undroppable segment was removed: %v", p.Segments[0])
 	}
 }
